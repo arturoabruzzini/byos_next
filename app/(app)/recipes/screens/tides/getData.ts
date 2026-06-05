@@ -71,12 +71,6 @@ type TidesParams = {
 	stormglass_api_key?: string;
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const isDateBetween = (d: Date, lo: Date, hi: Date) => lo <= d && d < hi;
-const addHours = (d: Date, h: number) =>
-	new Date(d.getTime() + h * 3_600_000);
-
 // ── Open-Meteo fetch (15-min cache) ──────────────────────────────────────────
 
 async function fetchOpenMeteo(lat: string, lng: string) {
@@ -107,8 +101,10 @@ async function fetchOpenMeteo(lat: string, lng: string) {
 		fetch(marineUrl.toString()),
 	]);
 
-	if (!weatherRes.ok) throw new Error(`Open-Meteo weather error ${weatherRes.status}`);
-	if (!marineRes.ok) throw new Error(`Open-Meteo marine error ${marineRes.status}`);
+	if (!weatherRes.ok)
+		throw new Error(`Open-Meteo weather error ${weatherRes.status}`);
+	if (!marineRes.ok)
+		throw new Error(`Open-Meteo marine error ${marineRes.status}`);
 
 	const rawWeather = await weatherRes.json();
 	const rawMarine = await marineRes.json();
@@ -134,7 +130,8 @@ async function fetchOpenMeteo(lat: string, lng: string) {
 		(time: string, i: number) => ({
 			time,
 			windspeed_10m_max: rawWeather.daily.windspeed_10m_max[i],
-			winddirection_10m_dominant: rawWeather.daily.winddirection_10m_dominant[i],
+			winddirection_10m_dominant:
+				rawWeather.daily.winddirection_10m_dominant[i],
 			temperature_2m_max: rawWeather.daily.temperature_2m_max[i],
 			temperature_2m_min: rawWeather.daily.temperature_2m_min[i],
 			apparent_temperature_max: rawWeather.daily.apparent_temperature_max[i],
@@ -149,14 +146,25 @@ async function fetchOpenMeteo(lat: string, lng: string) {
 		}),
 	);
 
-	return { weatherHourly, weatherDaily, marineHourly };
+	// utc_offset_seconds is returned by Open-Meteo when timezone=auto; it lets us
+	// render in the location's local time regardless of the server's timezone.
+	return {
+		weatherHourly,
+		weatherDaily,
+		marineHourly,
+		utcOffsetSeconds: (rawWeather.utc_offset_seconds as number) ?? 0,
+	};
 }
 
 const getCachedOpenMeteo = (lat: string, lng: string) =>
-	unstable_cache(() => fetchOpenMeteo(lat, lng), ["tides-openmeteo", lat, lng], {
-		revalidate: 900, // 15 min
-		tags: ["tides", "open-meteo"],
-	})();
+	unstable_cache(
+		() => fetchOpenMeteo(lat, lng),
+		["tides-openmeteo", lat, lng],
+		{
+			revalidate: 900, // 15 min
+			tags: ["tides", "open-meteo"],
+		},
+	)();
 
 // ── Stormglass fetch (12-hour cache) ─────────────────────────────────────────
 
@@ -165,18 +173,19 @@ async function fetchStormglass(lat: string, lng: string, apiKey: string) {
 	const params = new URLSearchParams({ lat, lng, datum: "MLLW" });
 
 	const [seaRes, astroRes] = await Promise.all([
-		fetch(
-			`https://api.stormglass.io/v2/tide/sea-level/point?${params}`,
-			{ headers },
-		),
+		fetch(`https://api.stormglass.io/v2/tide/sea-level/point?${params}`, {
+			headers,
+		}),
 		fetch(
 			`https://api.stormglass.io/v2/astronomy/point?${new URLSearchParams({ lat, lng })}`,
 			{ headers },
 		),
 	]);
 
-	if (!seaRes.ok) throw new Error(`Stormglass sea-level error ${seaRes.status}`);
-	if (!astroRes.ok) throw new Error(`Stormglass astronomy error ${astroRes.status}`);
+	if (!seaRes.ok)
+		throw new Error(`Stormglass sea-level error ${seaRes.status}`);
+	if (!astroRes.ok)
+		throw new Error(`Stormglass astronomy error ${astroRes.status}`);
 
 	const seaJson = await seaRes.json();
 	const astroJson = await astroRes.json();
@@ -194,17 +203,6 @@ const getCachedStormglass = (lat: string, lng: string, apiKey: string) =>
 		{ revalidate: 43200, tags: ["tides", "stormglass"] }, // 12 h
 	)();
 
-// ── Filter helpers ────────────────────────────────────────────────────────────
-
-function filterToWindow<T extends { time: string }>(
-	items: T[],
-	now: Date,
-	hours = 24,
-): T[] {
-	const end = addHours(now, hours);
-	return items.filter((x) => isDateBetween(new Date(x.time), now, end));
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default async function getData(
@@ -214,28 +212,39 @@ export default async function getData(
 	const lng = String(params?.longitude ?? "-0.1189");
 	const apiKey = params?.stormglass_api_key ?? "";
 
-	const now = new Date();
-
-	// Open-Meteo: always fetch (free)
-	const { weatherHourly, weatherDaily, marineHourly } =
+	// Open-Meteo: always fetch (free). It also reports the location's UTC offset.
+	const { weatherHourly, weatherDaily, marineHourly, utcOffsetSeconds } =
 		await getCachedOpenMeteo(lat, lng);
 
-	// Weather window: next 24 h
-	const weather = filterToWindow(weatherHourly, now);
+	// Render in the *location's* local time, not the server's. We express every
+	// timestamp as the location's wall-clock time encoded as a UTC instant, and
+	// the screen reads it back with getUTC* accessors. Open-Meteo hourly times are
+	// offset-naive local strings (already wall clock → append "Z"); Stormglass
+	// times are true UTC instants (shift by the offset to reach wall clock).
+	const offsetMs = (utcOffsetSeconds ?? 0) * 1000;
+	const wallFromNaive = (t: string) => new Date(`${t}Z`).getTime();
+	const wallFromInstant = (t: string) => new Date(t).getTime() + offsetMs;
+	const toWallIso = (ms: number) => new Date(ms).toISOString();
 
-	// Daily entry covering the current day
+	const nowMs = Date.now();
+	const wallNow = nowMs + offsetMs;
+	const windowEnd = wallNow + 24 * 3_600_000;
+	const inWindow = (ms: number) => wallNow <= ms && ms < windowEnd;
+
+	// Weather window: next 24 h, re-stamped to wall-clock-as-UTC
+	const weather: OpenMeteoHour[] = weatherHourly
+		.filter((h) => inWindow(wallFromNaive(h.time)))
+		.map((h) => ({ ...h, time: toWallIso(wallFromNaive(h.time)) }));
+
+	// Daily entry covering the current day (its time field is unused for angles)
 	const weatherDay =
-		weatherDaily.find((d) => {
-			const end = addHours(now, 24);
-			return isDateBetween(
-				new Date(`${d.time}T23:00:00`),
-				now,
-				end,
-			);
-		}) ?? weatherDaily[0];
+		weatherDaily.find((d) => inWindow(wallFromNaive(`${d.time}T23:00:00`))) ??
+		weatherDaily[0];
 
 	// Marine window: next 24 h
-	const marine = filterToWindow(marineHourly, now);
+	const marine: MarineHour[] = marineHourly
+		.filter((h) => inWindow(wallFromNaive(h.time)))
+		.map((h) => ({ ...h, time: toWallIso(wallFromNaive(h.time)) }));
 
 	// Stormglass: skip if no API key (recipe will render without tidal/astro data)
 	let seaLevel: SeaLevelPoint[] = [];
@@ -244,21 +253,47 @@ export default async function getData(
 	if (apiKey) {
 		const sg = await getCachedStormglass(lat, lng, apiKey);
 
-		// Sea level: 24 h window + one point before and after for smooth curve
-		const first = sg.seaLevel.findIndex((d) => new Date(d.time) > now);
-		const last = sg.seaLevel.findIndex((d) => new Date(d.time) > addHours(now, 24));
-		seaLevel = sg.seaLevel.slice(
-			Math.max(0, first - 1),
-			last === -1 ? undefined : last + 1,
+		// Sea level: 24 h window + one point before and after for a smooth curve
+		const first = sg.seaLevel.findIndex(
+			(d) => wallFromInstant(d.time) > wallNow,
 		);
+		const last = sg.seaLevel.findIndex(
+			(d) => wallFromInstant(d.time) > windowEnd,
+		);
+		seaLevel = sg.seaLevel
+			.slice(Math.max(0, first - 1), last === -1 ? undefined : last + 1)
+			.map((d) => ({ ...d, time: toWallIso(wallFromInstant(d.time)) }));
 
-		// Astronomical: today's entry
-		const todayKey = now.toISOString().replace(/T.*/, "T00:00:00+00:00");
-		astronomical = sg.astronomical.find((d) => d.time === todayKey) ?? sg.astronomical[0] ?? null;
+		// Astronomical: today's entry (Stormglass keys by UTC date), with every
+		// time field re-stamped to wall-clock-as-UTC for rendering.
+		const todayKey = new Date(nowMs)
+			.toISOString()
+			.replace(/T.*/, "T00:00:00+00:00");
+		const today =
+			sg.astronomical.find((d) => d.time === todayKey) ??
+			sg.astronomical[0] ??
+			null;
+		if (today) {
+			const shift = <V extends string | null>(v: V): V =>
+				(v ? toWallIso(wallFromInstant(v)) : v) as V;
+			astronomical = {
+				...today,
+				sunrise: shift(today.sunrise),
+				sunset: shift(today.sunset),
+				civilDawn: shift(today.civilDawn),
+				civilDusk: shift(today.civilDusk),
+				nauticalDawn: shift(today.nauticalDawn),
+				nauticalDusk: shift(today.nauticalDusk),
+				astronomicalDawn: shift(today.astronomicalDawn),
+				astronomicalDusk: shift(today.astronomicalDusk),
+				moonrise: shift(today.moonrise),
+				moonset: shift(today.moonset),
+			};
+		}
 	}
 
 	return {
-		now: now.toISOString(),
+		now: toWallIso(wallNow),
 		weather,
 		weatherDay,
 		marine,

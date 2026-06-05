@@ -24,10 +24,13 @@ const C = {
 
 const TAU = Math.PI * 2;
 
+// Times arrive as the location's wall-clock encoded as a UTC instant (see
+// getData.ts), so we read them with getUTC* to stay independent of the server's
+// own timezone.
 const getAngleFromTime = (t: Date) =>
-	(t.getHours() / 24 +
-		t.getMinutes() / (24 * 60) +
-		t.getSeconds() / (24 * 60 * 60)) *
+	(t.getUTCHours() / 24 +
+		t.getUTCMinutes() / (24 * 60) +
+		t.getUTCSeconds() / (24 * 60 * 60)) *
 	TAU;
 
 const getRelativeAngle = (t: Date, now: Date) =>
@@ -55,7 +58,7 @@ const arcPath = (
 	const [sx, sy] = polar(r, startAngle);
 	const [ex, ey] = polar(r, endAngle);
 	// Normalise to [0, TAU)
-	let delta = ((endAngle - startAngle) % TAU + TAU) % TAU;
+	let delta = (((endAngle - startAngle) % TAU) + TAU) % TAU;
 	const large = delta > Math.PI ? 1 : 0;
 	return `M ${cx + sx} ${cy + sy} A ${r} ${r} 0 ${large} ${sweep} ${cx + ex} ${cy + ey}`;
 };
@@ -70,7 +73,7 @@ const pizzaPath = (
 ) => {
 	const [sx, sy] = polar(r, a1);
 	const [ex, ey] = polar(r, a2);
-	let delta = ((a2 - a1) % TAU + TAU) % TAU;
+	let delta = (((a2 - a1) % TAU) + TAU) % TAU;
 	const large = delta > Math.PI ? 1 : 0;
 	return `M ${cx} ${cy} L ${cx + sx} ${cy + sy} A ${r} ${r} 0 ${large} 1 ${cx + ex} ${cy + ey} Z`;
 };
@@ -104,7 +107,7 @@ const pointsToPath = (pts: number[]) =>
 	pts.length < 2
 		? ""
 		: `M ${pts[0]} ${pts[1]} ` +
-		  Array.from({ length: (pts.length - 2) / 2 }, (_, i) => i + 1)
+			Array.from({ length: (pts.length - 2) / 2 }, (_, i) => i + 1)
 				.map((i) => `L ${pts[i * 2]} ${pts[i * 2 + 1]}`)
 				.join(" ");
 
@@ -199,7 +202,10 @@ function NightTime({
 				<path d={pizzaPath(cx, cy, r, civilDusk, civilDawn)} fill="#0000c0" />
 			)}
 			{nauticalDusk !== null && nauticalDawn !== null && (
-				<path d={pizzaPath(cx, cy, r, nauticalDusk, nauticalDawn)} fill="#000080" />
+				<path
+					d={pizzaPath(cx, cy, r, nauticalDusk, nauticalDawn)}
+					fill="#000080"
+				/>
 			)}
 			{astroDusk !== null && astroDawn !== null && (
 				<path d={pizzaPath(cx, cy, r, astroDusk, astroDawn)} fill="#000040" />
@@ -228,23 +234,27 @@ function MoonArc({
 	const d = arcPath(cx, cy, r, rise, set);
 	return (
 		<g>
-			<path d={d} fill="none" stroke={C.BLACK} strokeWidth={6} strokeLinecap="round" />
-			<path d={d} fill="none" stroke={C.WHITE} strokeWidth={2} strokeLinecap="round" />
+			<path
+				d={d}
+				fill="none"
+				stroke={C.BLACK}
+				strokeWidth={6}
+				strokeLinecap="round"
+			/>
+			<path
+				d={d}
+				fill="none"
+				stroke={C.WHITE}
+				strokeWidth={2}
+				strokeLinecap="round"
+			/>
 		</g>
 	);
 }
 
 // ── Moon phase disc ───────────────────────────────────────────────────────────
 
-function MoonPhase({
-	x,
-	y,
-	phase,
-}: {
-	x: number;
-	y: number;
-	phase: number;
-}) {
+function MoonPhase({ x, y, phase }: { x: number; y: number; phase: number }) {
 	// r=40 matches the original moonRadius=40 in drawMoon.ts
 	// (x,y) is the centre of the disc
 	const r = 40;
@@ -261,7 +271,14 @@ function MoonPhase({
 
 	return (
 		<g transform={transform}>
-			<circle cx={x} cy={y} r={r} fill={C.WHITE} stroke={C.BLACK} strokeWidth={2} />
+			<circle
+				cx={x}
+				cy={y}
+				r={r}
+				fill={C.WHITE}
+				stroke={C.BLACK}
+				strokeWidth={2}
+			/>
 			<path d={shadowHalf} fill={C.BLACK} />
 			<path d={phasePath} fill={ellipseFill} />
 		</g>
@@ -272,7 +289,7 @@ function MoonPhase({
 
 function clockNumberDivs(cx: number, cy: number, r: number, now: Date) {
 	const nowAngle = getAngleFromTime(now);
-	const labels = [now.getHours() + 1, 0, 6, 12, 18];
+	const labels = [now.getUTCHours() + 1, 0, 6, 12, 18];
 	return labels.map((num) => {
 		const angle = TAU - nowAngle + (num * Math.PI) / 12;
 		const [dx, dy] = polar(r, angle);
@@ -351,7 +368,10 @@ function WeatherConditions({
 			const raySpacing = totalAngle / rays;
 			for (let i = 0; i < rays; i++) {
 				const a1 = minAngle + i * raySpacing + raySpacing / 2;
-				sunPaths.push({ d: pizzaPath(cx, cy, 800, a1, a1 + rayWidth), k: `${hour.time}-${i}` });
+				sunPaths.push({
+					d: pizzaPath(cx, cy, 800, a1, a1 + rayWidth),
+					k: `${hour.time}-${i}`,
+				});
 			}
 		}
 
@@ -359,7 +379,10 @@ function WeatherConditions({
 		if (![0, 1].includes(code)) {
 			const angleDeg = (angle * 180) / Math.PI;
 			icons.push(
-				<g key={hour.time} transform={`translate(${cx} ${cy}) rotate(${angleDeg})`}>
+				<g
+					key={hour.time}
+					transform={`translate(${cx} ${cy}) rotate(${angleDeg})`}
+				>
 					<WeatherIcon code={code} seed={hour.time} />
 				</g>,
 			);
@@ -383,23 +406,113 @@ function WeatherIcon({ code, seed }: { code: number; seed: string }) {
 	// Everything else → overcast cloud plus precipitation overlay.
 	const base = <Cloud seed={seed} />;
 
-	if ([45, 48].includes(code)) return <g>{base}<Fog /></g>;
-	if ([51, 56].includes(code)) return <g>{base}<Precip type="drizzle" intensity={1} /></g>;
-	if ([53].includes(code)) return <g>{base}<Precip type="drizzle" intensity={2} /></g>;
-	if ([55, 57].includes(code)) return <g>{base}<Precip type="drizzle" intensity={3} /></g>;
-	if ([61, 66].includes(code)) return <g>{base}<Precip type="rain" intensity={1} /></g>;
-	if ([63].includes(code)) return <g>{base}<Precip type="rain" intensity={2} /></g>;
-	if ([65, 67].includes(code)) return <g>{base}<Precip type="rain" intensity={3} /></g>;
-	if ([80].includes(code)) return <g>{base}<Precip type="shower" intensity={1} /></g>;
-	if ([81].includes(code)) return <g>{base}<Precip type="shower" intensity={2} /></g>;
-	if ([82].includes(code)) return <g>{base}<Precip type="shower" intensity={3} /></g>;
-	if ([71, 85].includes(code)) return <g>{base}<Precip type="snow" intensity={1} /></g>;
-	if ([73].includes(code)) return <g>{base}<Precip type="snow" intensity={2} /></g>;
-	if ([75, 77, 86].includes(code)) return <g>{base}<Precip type="snow" intensity={3} /></g>;
+	if ([45, 48].includes(code))
+		return (
+			<g>
+				{base}
+				<Fog />
+			</g>
+		);
+	if ([51, 56].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="drizzle" intensity={1} />
+			</g>
+		);
+	if ([53].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="drizzle" intensity={2} />
+			</g>
+		);
+	if ([55, 57].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="drizzle" intensity={3} />
+			</g>
+		);
+	if ([61, 66].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="rain" intensity={1} />
+			</g>
+		);
+	if ([63].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="rain" intensity={2} />
+			</g>
+		);
+	if ([65, 67].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="rain" intensity={3} />
+			</g>
+		);
+	if ([80].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="shower" intensity={1} />
+			</g>
+		);
+	if ([81].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="shower" intensity={2} />
+			</g>
+		);
+	if ([82].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="shower" intensity={3} />
+			</g>
+		);
+	if ([71, 85].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="snow" intensity={1} />
+			</g>
+		);
+	if ([73].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="snow" intensity={2} />
+			</g>
+		);
+	if ([75, 77, 86].includes(code))
+		return (
+			<g>
+				{base}
+				<Precip type="snow" intensity={3} />
+			</g>
+		);
 	if ([95, 96].includes(code))
-		return <g>{base}<Precip type="rain" intensity={3} /><Precip type="lightning" intensity={1} /></g>;
+		return (
+			<g>
+				{base}
+				<Precip type="rain" intensity={3} />
+				<Precip type="lightning" intensity={1} />
+			</g>
+		);
 	if ([99].includes(code))
-		return <g>{base}<Precip type="rain" intensity={3} /><Precip type="lightning" intensity={2} /></g>;
+		return (
+			<g>
+				{base}
+				<Precip type="rain" intensity={3} />
+				<Precip type="lightning" intensity={2} />
+			</g>
+		);
 
 	return base; // code 3: overcast
 }
@@ -427,7 +540,12 @@ function Cloud({ sparse, seed }: { sparse?: boolean; seed: string }) {
 
 	return (
 		<g fill={C.WHITE}>
-			<rect x={-maxWidth / 2} y={-radius - height / 2} width={maxWidth} height={height} />
+			<rect
+				x={-maxWidth / 2}
+				y={-radius - height / 2}
+				width={maxWidth}
+				height={height}
+			/>
 			<circle cx={-maxWidth / 2} cy={-radius} r={fillet} />
 			<circle cx={maxWidth / 2} cy={-radius} r={fillet} />
 			<circle cx={sign * c1Pos} cy={-radius + fillet - c1r} r={c1r} />
@@ -448,7 +566,12 @@ function Fog() {
 			line.reduce((acc, curr) => acc + curr, 0) + spacing * line.length - 1;
 		let startX = -totalWidth / 2;
 		line.forEach((length, j) => {
-			segments.push({ x1: startX, x2: startX + length, y: startY, k: `${i}-${j}` });
+			segments.push({
+				x1: startX,
+				x2: startX + length,
+				y: startY,
+				k: `${i}-${j}`,
+			});
 			startX += length + spacing;
 		});
 		startY += heightIncrement;
@@ -477,10 +600,19 @@ function Precip({
 		intensity === 1
 			? [[0, startY]]
 			: intensity === 2
-				? [[-spacing * 0.7, startY], [spacing * 0.7, startY + spacing * 0.4]]
-				: [[-spacing, startY], [0, startY + spacing], [spacing, startY]];
+				? [
+						[-spacing * 0.7, startY],
+						[spacing * 0.7, startY + spacing * 0.4],
+					]
+				: [
+						[-spacing, startY],
+						[0, startY + spacing],
+						[spacing, startY],
+					];
 
-	return <g>{positions.map(([x, y], i) => renderPrecip(type, x, y, `${i}`))}</g>;
+	return (
+		<g>{positions.map(([x, y], i) => renderPrecip(type, x, y, `${i}`))}</g>
+	);
 }
 
 function renderPrecip(type: string, x: number, y: number, key: string) {
@@ -504,8 +636,18 @@ function renderPrecip(type: string, x: number, y: number, key: string) {
 			const sp = size / 2;
 			return (
 				<g key={key} stroke={C.BLUE} strokeWidth={2.5} strokeLinecap="round">
-					<line x1={x - sp} y1={y - size + offset} x2={x - sp} y2={y + offset} />
-					<line x1={x + sp} y1={y - size - offset} x2={x + sp} y2={y - offset} />
+					<line
+						x1={x - sp}
+						y1={y - size + offset}
+						x2={x - sp}
+						y2={y + offset}
+					/>
+					<line
+						x1={x + sp}
+						y1={y - size - offset}
+						x2={x + sp}
+						y2={y - offset}
+					/>
 				</g>
 			);
 		}
@@ -531,7 +673,13 @@ function renderPrecip(type: string, x: number, y: number, key: string) {
 		case "lightning": {
 			const yOff = -25;
 			const pts: [number, number][] = [
-				[-2, 0], [-3, 17], [0, 17], [-2, 30], [5, 14], [2, 14], [4, 0],
+				[-2, 0],
+				[-3, 17],
+				[0, 17],
+				[-2, 30],
+				[5, 14],
+				[2, 14],
+				[4, 0],
 			];
 			return (
 				<polygon
@@ -599,7 +747,9 @@ function WindSock({
 	const offsetY = (-segLen * count) / 2;
 
 	return (
-		<g transform={`translate(${cx}, ${cy}) rotate(${direction}) translate(0, ${offsetY})`}>
+		<g
+			transform={`translate(${cx}, ${cy}) rotate(${direction}) translate(0, ${offsetY})`}
+		>
 			{segments}
 		</g>
 	);
@@ -744,7 +894,13 @@ export default function Tides({
 
 					{/* Night time zones — original uses canvas.width (800) to fill whole bg */}
 					{astronomical && (
-						<NightTime cx={cx} cy={cy} r={width} now={now} astro={astronomical} />
+						<NightTime
+							cx={cx}
+							cy={cy}
+							r={width}
+							now={now}
+							astro={astronomical}
+						/>
 					)}
 
 					{/* Inner orange circle masks the very centre */}
@@ -752,7 +908,13 @@ export default function Tides({
 
 					{/* Moon visibility arc (outer ring) */}
 					{astronomical && (
-						<MoonArc cx={cx} cy={cy} r={maxR - 3} now={now} astro={astronomical} />
+						<MoonArc
+							cx={cx}
+							cy={cy}
+							r={maxR - 3}
+							now={now}
+							astro={astronomical}
+						/>
 					)}
 
 					{/* Draw order mirrors drawWeather.ts in the original: weather
@@ -761,7 +923,13 @@ export default function Tides({
 
 					{/* Weather icons wedges */}
 					{weather.length > 0 && weatherDay && (
-						<WeatherConditions cx={cx} cy={cy} r={innerR} now={now} weather={weather} />
+						<WeatherConditions
+							cx={cx}
+							cy={cy}
+							r={innerR}
+							now={now}
+							weather={weather}
+						/>
 					)}
 
 					{/* Wind sock — centred at clock origin, matching original */}
