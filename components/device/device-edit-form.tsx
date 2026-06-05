@@ -532,6 +532,24 @@ export default function DeviceEditForm({
 									<ToggleGroupItem value="16">16</ToggleGroupItem>
 								</ToggleGroup>
 							</Field>
+
+							<Field
+								label="Image format"
+								hint="PNG preserves full color for color e-ink panels. BMP is grayscale-only."
+							>
+								<ToggleGroup
+									type="single"
+									value={editedDevice?.image_format ?? "bmp"}
+									onValueChange={(value) => {
+										if (value) onSelectChange("image_format", value);
+									}}
+									variant="outline"
+									className="grid w-fit grid-cols-2"
+								>
+									<ToggleGroupItem value="bmp">BMP</ToggleGroupItem>
+									<ToggleGroupItem value="png">PNG</ToggleGroupItem>
+								</ToggleGroup>
+							</Field>
 						</TabsContent>
 
 						<TabsContent value="refresh" className="mt-4 space-y-4">
