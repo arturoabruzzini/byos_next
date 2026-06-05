@@ -203,7 +203,130 @@
 				"placeholder": "your-stormglass-api-key"
 			}
 		},
-		"tags": ["svg", "tides", "weather", "marine", "api", "live-data", "configurable", "color"],
+		"tags": [
+			"svg",
+			"tides",
+			"weather",
+			"marine",
+			"api",
+			"live-data",
+			"configurable",
+			"color"
+		],
+		"renderSettings": {},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
+	"adhdinos": {
+		"title": "ADHDinos Comic",
+		"published": true,
+		"createdAt": "2026-06-05T00:00:00Z",
+		"updatedAt": "2026-06-05T00:00:00Z",
+		"description": "Displays the daily ADHDinos comic by Ryan Keats, pulled from the ComicCaster RSS feed.",
+		"componentPath": "./screens/adhdinos",
+		"hasDataFetch": true,
+		"props": {},
+		"params": {},
+		"tags": ["image", "comics", "api", "live-data"],
+		"author": {
+			"name": "lanrat",
+			"github": "lanrat"
+		},
+		"renderSettings": {},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
+	"nasa-iotd": {
+		"title": "NASA Image of the Day",
+		"published": true,
+		"createdAt": "2026-06-05T00:00:00Z",
+		"updatedAt": "2026-06-05T00:00:00Z",
+		"description": "Displays NASA's Image of the Day, pulled from the official NASA RSS feed.",
+		"componentPath": "./screens/nasa-iotd",
+		"hasDataFetch": true,
+		"props": {},
+		"params": {
+			"show_title_bar": {
+				"type": "string",
+				"label": "Show Title Bar",
+				"description": "Show the NASA wordmark and image title at the bottom. Set to 'hide' to show the image only.",
+				"default": "show",
+				"placeholder": "show"
+			}
+		},
+		"tags": ["image", "space", "api", "live-data", "configurable"],
+		"author": {
+			"name": "lanrat",
+			"github": "lanrat"
+		},
+		"renderSettings": {},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
+	"nasa-apod": {
+		"title": "NASA Astronomy Picture of the Day",
+		"published": true,
+		"createdAt": "2026-06-05T00:00:00Z",
+		"updatedAt": "2026-06-05T00:00:00Z",
+		"description": "Displays NASA's Astronomy Picture of the Day — the featured image alongside its title and explanation, scraped from apod.nasa.gov.",
+		"componentPath": "./screens/nasa-apod",
+		"hasDataFetch": true,
+		"props": {},
+		"params": {
+			"show_title": {
+				"type": "string",
+				"label": "Show Title",
+				"description": "Show the picture title. Set to 'hide' to omit it.",
+				"default": "show",
+				"placeholder": "show"
+			},
+			"show_explanation": {
+				"type": "string",
+				"label": "Show Explanation",
+				"description": "Show the explanation text beside the image. Set to 'hide' for an image-only layout.",
+				"default": "show",
+				"placeholder": "show"
+			}
+		},
+		"tags": ["image", "space", "api", "live-data", "configurable"],
+		"author": {
+			"name": "lanrat",
+			"github": "lanrat"
+		},
+		"renderSettings": {},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
+	"xkcd": {
+		"title": "XKCD with Hover",
+		"published": true,
+		"createdAt": "2026-06-05T00:00:00Z",
+		"updatedAt": "2026-06-05T00:00:00Z",
+		"description": "Displays the latest XKCD comic by Randall Munroe, with its title and hover/alt text.",
+		"componentPath": "./screens/xkcd",
+		"hasDataFetch": true,
+		"props": {},
+		"params": {
+			"show_title": {
+				"type": "string",
+				"label": "Show Title",
+				"description": "Show the comic title above the image. Set to 'hide' to omit it.",
+				"default": "show",
+				"placeholder": "show"
+			},
+			"show_alt": {
+				"type": "string",
+				"label": "Show Hover Text",
+				"description": "Show the hover/alt text below the image. Set to 'hide' to omit it.",
+				"default": "show",
+				"placeholder": "show"
+			}
+		},
+		"tags": ["image", "comics", "api", "live-data", "configurable"],
+		"author": {
+			"name": "lanrat",
+			"github": "lanrat"
+		},
 		"renderSettings": {},
 		"version": "0.1.0",
 		"category": "display-components"
