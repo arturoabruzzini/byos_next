@@ -755,39 +755,14 @@ export default function Tides({
 						<MoonArc cx={cx} cy={cy} r={maxR - 3} now={now} astro={astronomical} />
 					)}
 
+					{/* Draw order mirrors drawWeather.ts in the original: weather
+					    conditions → wind sock → clothing, all beneath the curves and
+					    now-line drawn afterwards. */}
+
 					{/* Weather icons wedges */}
 					{weather.length > 0 && weatherDay && (
 						<WeatherConditions cx={cx} cy={cy} r={innerR} now={now} weather={weather} />
 					)}
-
-					{/* Sea level polar curve (blue) — original passes maxRadius directly */}
-					{seaLevel.length > 1 &&
-						polarCurve(
-							cx,
-							cy,
-							maxR,
-							now,
-							seaLevel.map((d) => ({ time: d.time, value: d.sg })),
-							-1,
-							6,
-							C.BLUE,
-						)}
-
-					{/* Wave height polar curve (green) — original passes maxRadius directly */}
-					{marine.length > 1 &&
-						polarCurve(
-							cx,
-							cy,
-							maxR,
-							now,
-							marine.map((d) => ({ time: d.time, value: d.wave_height })),
-							0,
-							3,
-							C.GREEN,
-						)}
-
-					{/* Now line */}
-					<NowLine cx={cx} cy={cy} r={maxR} />
 
 					{/* Wind sock — centred at clock origin, matching original */}
 					{weatherDay && (
@@ -803,6 +778,35 @@ export default function Tides({
 					{weatherDay && (
 						<ClothingIcon temp={weatherDay.apparent_temperature_max} />
 					)}
+
+					{/* Wave height polar curve (green) — drawn before sea level so blue sits on top (matches original) */}
+					{marine.length > 1 &&
+						polarCurve(
+							cx,
+							cy,
+							maxR,
+							now,
+							marine.map((d) => ({ time: d.time, value: d.wave_height })),
+							0,
+							3,
+							C.GREEN,
+						)}
+
+					{/* Sea level polar curve (blue) — original passes maxRadius directly */}
+					{seaLevel.length > 1 &&
+						polarCurve(
+							cx,
+							cy,
+							maxR,
+							now,
+							seaLevel.map((d) => ({ time: d.time, value: d.sg })),
+							-1,
+							6,
+							C.BLUE,
+						)}
+
+					{/* Now line */}
+					<NowLine cx={cx} cy={cy} r={maxR} />
 
 					{/* Moon phase disc — absolute position (50,50) matching drawMoon.ts */}
 					{astronomical && (
