@@ -161,11 +161,12 @@ export default function DeviceView({
 		playlistScreens.length > 0;
 	const isMixup =
 		device.display_mode === DeviceDisplayMode.MIXUP && device.mixup_id;
+	const previewExt = device.image_format === "png" ? "png" : "bmp";
 	const heroSrc = isPlaylist
-		? `/api/bitmap/${playlistScreens[0].screen || "simple-text"}.bmp?width=${deviceWidth}&height=${deviceHeight}`
+		? `/api/bitmap/${playlistScreens[0].screen || "simple-text"}.${previewExt}?width=${deviceWidth}&height=${deviceHeight}`
 		: isMixup
-			? `/api/bitmap/mixup/${device.mixup_id}.bmp?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`
-			: `/api/bitmap/${device?.screen || "simple-text"}.bmp?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`;
+			? `/api/bitmap/mixup/${device.mixup_id}.${previewExt}?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`
+			: `/api/bitmap/${device?.screen || "simple-text"}.${previewExt}?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`;
 
 	return (
 		<div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
@@ -219,7 +220,7 @@ export default function DeviceView({
 								>
 									<DeviceFrame size="sm" portrait={isPortrait} flat>
 										<Image
-											src={`/api/bitmap/${screen.screen || "simple-text"}.bmp?width=${deviceWidth}&height=${deviceHeight}`}
+											src={`/api/bitmap/${screen.screen || "simple-text"}.${previewExt}?width=${deviceWidth}&height=${deviceHeight}`}
 											alt={`Frame ${i + 1}`}
 											fill
 											className="absolute inset-0 h-full w-full object-cover"
