@@ -22,7 +22,10 @@ export async function GET(
 		// Always await params as required by Next.js 14/15
 		const { slug = ["not-found"] } = await params;
 		const bitmapPath = Array.isArray(slug) ? slug.join("/") : slug;
-		const recipeSlug = bitmapPath.replace(".bmp", "");
+		// Format is driven by the file extension: ".png" → full-colour PNG,
+		// anything else → the grayscale BMP path.
+		const isPng = bitmapPath.toLowerCase().endsWith(".png");
+		const recipeSlug = bitmapPath.replace(/\.(bmp|png)$/i, "");
 
 		// Get width, height, and grayscale from query parameters
 		const { searchParams } = new URL(req.url);
@@ -52,11 +55,12 @@ export async function GET(
 		// Forward cookies so browser rendering can reuse the caller's auth session.
 		const cookieHeader = req.headers.get("cookie");
 
-		const recipeBuffer = await renderRecipeBitmap(
+		const recipeBuffer = await renderRecipeImage(
 			recipeSlug,
 			validWidth,
 			validHeight,
 			grayscaleLevels,
+			isPng ? "png" : "bitmap",
 			userId,
 			cookieHeader || undefined,
 		);
@@ -67,7 +71,7 @@ export async function GET(
 			recipeBuffer.length === 0
 		) {
 			logger.warn(
-				`Failed to generate bitmap for ${recipeSlug}, returning fallback`,
+				`Failed to generate ${isPng ? "png" : "bitmap"} for ${recipeSlug}, returning fallback`,
 			);
 			const fallback = await renderFallbackBitmap();
 			return fallback;
@@ -75,7 +79,7 @@ export async function GET(
 
 		return new Response(new Uint8Array(recipeBuffer), {
 			headers: {
-				"Content-Type": "image/bmp",
+				"Content-Type": isPng ? "image/png" : "image/bmp",
 				"Content-Length": recipeBuffer.length.toString(),
 			},
 		});
@@ -87,12 +91,13 @@ export async function GET(
 	}
 }
 
-const renderRecipeBitmap = cache(
+const renderRecipeImage = cache(
 	async (
 		recipeId: string,
 		width: number,
 		height: number,
 		grayscaleLevels: number = 2,
+		format: "bitmap" | "png" = "bitmap",
 		userId: string | null = null,
 		cookies?: string,
 	) => {
@@ -100,12 +105,13 @@ const renderRecipeBitmap = cache(
 			slug: recipeId,
 			imageWidth: width,
 			imageHeight: height,
-			formats: ["bitmap"],
+			formats: [format],
 			grayscale: grayscaleLevels,
 			userId,
 			cookies,
 		});
-		return renders.bitmap ?? Buffer.from([]);
+		const buffer = format === "png" ? renders.png : renders.bitmap;
+		return buffer ?? Buffer.from([]);
 	},
 );
 

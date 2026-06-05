@@ -78,6 +78,10 @@ export interface Devices {
 	 */
 	grayscale: Generated<number | null>;
 	id: Generated<Int8>;
+	/**
+	 * Output image format the display API hands the device: 'bmp' (grayscale, default) or 'png' (full colour, dithered on-device). Controls the file extension in image_url and the bitmap route's Content-Type.
+	 */
+	image_format: Generated<string>;
 	last_refresh_duration: number | null;
 	last_update_time: Timestamp | null;
 	mac_address: string;
@@ -179,7 +183,7 @@ export interface Recipes {
 	description: string | null;
 	id: Generated<string>;
 	logo_url: string | null;
-	metadata: Generated<JsonObject | null>;
+	metadata: Generated<Json | null>;
 	name: string;
 	repo: string | null;
 	screenshot_url: string | null;
@@ -190,6 +194,12 @@ export interface Recipes {
 	version: string | null;
 	zip_entry_path: string | null;
 	zip_url: string | null;
+}
+
+export interface SchemaMigrations {
+	applied_at: Generated<Timestamp>;
+	checksum: string;
+	name: string;
 }
 
 export interface ScreenConfigs {
@@ -259,6 +269,7 @@ export interface DB {
 	playlists: Playlists;
 	recipe_files: RecipeFiles;
 	recipes: Recipes;
+	schema_migrations: SchemaMigrations;
 	screen_configs: ScreenConfigs;
 	session: Session;
 	system_logs: SystemLogs;

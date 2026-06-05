@@ -51,11 +51,27 @@ export const parseRequestHeaders = (request: Request): RequestHeaders => {
 		model: headers.get("Model")?.trim() || null,
 		specialFunction: headers.get("Special-Function") === "true",
 		base64: headers.get("BASE64") === "true",
-		hostUrl:
-			(headers.get("x-forwarded-proto") || "http") +
-			"://" +
-			(headers.get("x-forwarded-host") || headers.get("host") || "localhost"),
+		hostUrl: resolveHostUrl(headers),
 	};
+};
+
+// Origin used to build absolute image_url values handed to the device.
+//
+// Prefer an explicitly configured base URL over the request's Host header.
+// Some firmware HTTP clients (notably MicroPython's urequests) omit the port
+// from the Host header, which would otherwise yield image URLs pointing at
+// port 80 instead of the real server port. An explicit base URL removes that
+// dependency on what the client sends.
+const resolveHostUrl = (headers: Headers): string => {
+	const configured = process.env.IMAGE_BASE_URL || process.env.BETTER_AUTH_URL;
+	if (configured) {
+		return configured.replace(/\/+$/, "");
+	}
+	return (
+		(headers.get("x-forwarded-proto") || "http") +
+		"://" +
+		(headers.get("x-forwarded-host") || headers.get("host") || "localhost")
+	);
 };
 
 // --- Helper Functions ---

@@ -45,6 +45,7 @@ export type Device = {
 	screen_height: number | null;
 	screen_orientation: string | null;
 	grayscale: number | null;
+	image_format: string;
 	model: string | null;
 	palette_id: string | null;
 };

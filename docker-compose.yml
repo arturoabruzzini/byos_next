@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: byos_postgres
+    container_name: trmnl_byos_postgres
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -20,10 +20,13 @@ services:
       retries: 5
 
   byos-next:
-    # image: ghcr.io/usetrmnl/byos_next:latest
+    # Build from the local fork checkout instead of pulling the prebuilt image.
+    # To revert to the upstream prebuilt image, swap these two lines:
     build:
       context: .
       dockerfile: Dockerfile
+    # image: ghcr.io/usetrmnl/byos_next:latest
+    container_name: trmnl_byos_next
     ports:
       - "3000:3000"
     env_file:
@@ -31,7 +34,7 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/byos_db?sslmode=disable
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
     depends_on:
       postgres:
         condition: service_healthy

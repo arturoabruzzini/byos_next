@@ -109,6 +109,10 @@ export async function GET(request: Request) {
 		const deviceHeight = headers.height || storedHeight;
 		const grayscaleLevels = getGrayscaleLevels(device.grayscale);
 
+		// Output format/extension is per-device: 'png' for full-colour panels,
+		// 'bmp' (grayscale) otherwise. The bitmap route keys off this extension.
+		const ext = device.image_format === "png" ? "png" : "bmp";
+
 		// Build common query params for image URLs
 		const baseQueryParams = `width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}${headers.base64 ? "&base64=true" : ""}`;
 
@@ -143,7 +147,7 @@ export async function GET(request: Request) {
 						dynamicRefreshRate = 60;
 					}
 				}
-				imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.bmp?${baseQueryParams}`;
+				imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.${ext}?${baseQueryParams}`;
 				break;
 
 			case DeviceDisplayMode.MIXUP:
@@ -158,7 +162,7 @@ export async function GET(request: Request) {
 						metadata,
 					});
 				} else {
-					imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.bmp?${baseQueryParams}`;
+					imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.${ext}?${baseQueryParams}`;
 				}
 				dynamicRefreshRate = calculateRefreshRate(
 					device.refresh_schedule as unknown as RefreshSchedule,
@@ -173,7 +177,7 @@ export async function GET(request: Request) {
 					180,
 					device.timezone || "UTC",
 				);
-				imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.bmp?${baseQueryParams}`;
+				imageUrl = `${baseUrl}/${screenToDisplay || "not-found"}.${ext}?${baseQueryParams}`;
 				break;
 		}
 
