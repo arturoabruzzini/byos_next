@@ -284,7 +284,7 @@ function clockNumberDivs(cx: number, cy: number, r: number, now: Date) {
 					left: cx + dx,
 					top: cy + dy,
 					transform: "translate(-50%, -50%)",
-					fontSize: 18,
+					fontSize: 24,
 					fontFamily: "Arial, sans-serif",
 					color: C.BLACK,
 					fontWeight: "bold",
@@ -315,14 +315,14 @@ function WeatherConditions({
 }) {
 	const icons = weather.map((hour, _i) => {
 		const angle = getRelativeAngle(new Date(hour.time), now);
-		// Centre of the wedge in SVG coords
-		const wedgeCx = cx + polar(r * 0.72, angle)[0];
-		const wedgeCy = cy + polar(r * 0.72, angle)[1];
-		// Rotation so icon faces outward from centre
-		const rot = (angle * 180) / Math.PI - 90;
+		// Position at hardcoded radius 201 matching original drawCloudy (radius = 201)
+		const wedgeCx = cx + polar(201, angle)[0];
+		const wedgeCy = cy + polar(201, angle)[1];
+		// Align icon's x-axis tangentially: rot = angle (in degrees) matches ctx.rotate(angle)
+		const rot = (angle * 180) / Math.PI;
 
 		return (
-			<g key={hour.time} transform={`translate(${wedgeCx}, ${wedgeCy}) rotate(${rot})`}>
+			<g key={hour.time} transform={`translate(${wedgeCx}, ${wedgeCy}) rotate(${rot}) scale(2.5)`}>
 				<WeatherIcon code={hour.weathercode} isDay={hour.is_day === 1} />
 			</g>
 		);
@@ -663,9 +663,9 @@ export default function Tides({
 					{/* Background orange circle */}
 					<circle cx={cx} cy={cy} r={maxR} fill={C.ORANGE} />
 
-					{/* Night time zones (drawn behind inner circle) */}
+					{/* Night time zones — original uses canvas.width (800) to fill whole bg */}
 					{astronomical && (
-						<NightTime cx={cx} cy={cy} r={maxR} now={now} astro={astronomical} />
+						<NightTime cx={cx} cy={cy} r={width} now={now} astro={astronomical} />
 					)}
 
 					{/* Inner orange circle masks the very centre */}
@@ -681,12 +681,12 @@ export default function Tides({
 						<WeatherConditions cx={cx} cy={cy} r={innerR} now={now} weather={weather} />
 					)}
 
-					{/* Sea level polar curve (blue) */}
+					{/* Sea level polar curve (blue) — original passes maxRadius directly */}
 					{seaLevel.length > 1 &&
 						polarCurve(
 							cx,
 							cy,
-							innerR * 0.6,
+							maxR,
 							now,
 							seaLevel.map((d) => ({ time: d.time, value: d.sg })),
 							-1,
@@ -694,12 +694,12 @@ export default function Tides({
 							C.BLUE,
 						)}
 
-					{/* Wave height polar curve (green) */}
+					{/* Wave height polar curve (green) — original passes maxRadius directly */}
 					{marine.length > 1 &&
 						polarCurve(
 							cx,
 							cy,
-							innerR * 0.45,
+							maxR,
 							now,
 							marine.map((d) => ({ time: d.time, value: d.wave_height })),
 							0,
