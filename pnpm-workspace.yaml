@@ -1,9 +1,9 @@
-# pnpm 11 moved per-package build-script allowlist out of package.json's "pnpm"
-# field and into this file. List every package whose postinstall/install script
-# must run (native add-ons, WASM compiles, etc).
-onlyBuiltDependencies:
-  - "@biomejs/biome"
-  - "@tailwindcss/oxide"
-  - msw
-  - sharp
-  - unrs-resolver
+# pnpm 11 moved build-script approvals out of package.json's "pnpm" field and
+# into this file. allowBuilds grants each package permission to run its
+# postinstall/install script (native add-ons, WASM compiles, etc).
+allowBuilds:
+  "@biomejs/biome": true
+  "@tailwindcss/oxide": true
+  msw: true
+  sharp: true
+  unrs-resolver: true
