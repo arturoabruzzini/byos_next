@@ -287,7 +287,6 @@ function clockNumberDivs(cx: number, cy: number, r: number, now: Date) {
 					fontSize: 24,
 					fontFamily: "Arial, sans-serif",
 					color: C.BLACK,
-					fontWeight: "bold",
 					lineHeight: 1,
 					pointerEvents: "none",
 				}}
@@ -313,76 +312,53 @@ function WeatherConditions({
 	now: Date;
 	weather: OpenMeteoHour[];
 }) {
-	const icons = weather.map((hour, _i) => {
-		const angle = getRelativeAngle(new Date(hour.time), now);
-		// Position at hardcoded radius 201 matching original drawCloudy (radius = 201)
-		const wedgeCx = cx + polar(201, angle)[0];
-		const wedgeCy = cy + polar(201, angle)[1];
-		// Align icon's x-axis tangentially: rot = angle (in degrees) matches ctx.rotate(angle)
-		const rot = (angle * 180) / Math.PI;
+	// Sun rays: pizza slices from clock centre extending to canvas edge (matches original drawSunny)
+	const sunPaths: { d: string; k: string }[] = [];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const icons: any[] = [];
 
-		return (
-			<g key={hour.time} transform={`translate(${wedgeCx}, ${wedgeCy}) rotate(${rot}) scale(2.5)`}>
-				<WeatherIcon code={hour.weathercode} isDay={hour.is_day === 1} />
-			</g>
-		);
+	weather.forEach((hour) => {
+		const angle = getRelativeAngle(new Date(hour.time), now);
+		const code = hour.weathercode;
+		const isDay = hour.is_day === 1;
+
+		if (isDay && [0, 1, 2].includes(code)) {
+			const rays = code === 2 ? 2 : 5;
+			const totalAngle = Math.PI / 12;
+			const rayWidth = totalAngle / 16;
+			const raySpacing = totalAngle / rays;
+			const minAngle = angle - Math.PI / 24;
+			for (let i = 0; i < rays; i++) {
+				const a1 = minAngle + i * raySpacing + raySpacing / 2;
+				sunPaths.push({ d: pizzaPath(cx, cy, 800, a1, a1 + rayWidth), k: `${hour.time}-${i}` });
+			}
+		}
+
+		// Cloud/precipitation icons at radius 201
+		if (![0, 1].includes(code) || !isDay) {
+			const [ix, iy] = polar(201, angle);
+			const rot = (angle * 180) / Math.PI;
+			icons.push(
+				<g key={hour.time} transform={`translate(${cx + ix}, ${cy + iy}) rotate(${rot}) scale(2.5)`}>
+					<WeatherIcon code={code} isDay={isDay} />
+				</g>,
+			);
+		}
 	});
 
-	return <g>{icons}</g>;
+	return (
+		<g>
+			{sunPaths.map(({ d, k }) => (
+				<path key={k} d={d} fill={C.YELLOW} />
+			))}
+			{icons}
+		</g>
+	);
 }
 
 function WeatherIcon({ code, isDay }: { code: number; isDay: boolean }) {
-	if ([0, 1].includes(code)) {
-		if (!isDay) return null;
-		// Sun rays
-		return (
-			<g>
-				{Array.from({ length: 5 }, (_, i) => {
-					const a = (i / 5) * TAU;
-					return (
-						<line
-							key={i}
-							x1={Math.cos(a) * 5}
-							y1={Math.sin(a) * 5}
-							x2={Math.cos(a) * 14}
-							y2={Math.sin(a) * 14}
-							stroke={C.YELLOW}
-							strokeWidth={3}
-							strokeLinecap="round"
-						/>
-					);
-				})}
-				<circle cx={0} cy={0} r={5} fill={C.YELLOW} />
-			</g>
-		);
-	}
-
 	if (code === 2) {
-		return (
-			<g>
-				{isDay && (
-					<g>
-						{Array.from({ length: 2 }, (_, i) => {
-							const a = (i / 2) * TAU;
-							return (
-								<line
-									key={i}
-									x1={Math.cos(a) * 5}
-									y1={Math.sin(a) * 5}
-									x2={Math.cos(a) * 12}
-									y2={Math.sin(a) * 12}
-									stroke={C.YELLOW}
-									strokeWidth={3}
-									strokeLinecap="round"
-								/>
-							);
-						})}
-						<circle cx={0} cy={-3} r={4} fill={C.YELLOW} />
-					</g>
-				)}
-				<Cloud />
-			</g>
-		);
+		return <Cloud />;
 	}
 
 	// Overcast base
@@ -492,11 +468,12 @@ function WindSock({
 	speed: number;
 	direction: number;
 }) {
-	const maxWidth = 30;
-	const minWidth = 5;
+	const maxWidth = 60;
+	const minWidth = 10;
 	const speedIncrement = 5;
-	const maxSegments = 8;
-	const segLen = 25;
+	const maxWindSpeed = 40;
+	const maxSegments = Math.floor(maxWindSpeed / speedIncrement);
+	const segLen = 50;
 
 	const count = Math.min(Math.round(speed / speedIncrement), maxSegments);
 	if (count === 0) return null;
