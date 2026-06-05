@@ -298,6 +298,26 @@ function clockNumberDivs(cx: number, cy: number, r: number, now: Date) {
 }
 
 // ── Weather conditions ────────────────────────────────────────────────────────
+// Faithful SVG port of drawWeather.ts. Each hour's cloud/precipitation is drawn
+// in a frame rotated about the clock centre by the hour's angle, with the local
+// −y axis pointing radially outward (matching the canvas ctx.rotate(angle) +
+// "draw at y ≈ −radius" convention). Coordinates below mirror the originals.
+
+// Deterministic per-hour PRNG so cloud variation is stable across renders.
+function seededRandom(seed: string) {
+	let h = 2166136261;
+	for (let i = 0; i < seed.length; i++) {
+		h ^= seed.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	return () => {
+		h += 0x6d2b79f5;
+		let t = h;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
 
 function WeatherConditions({
 	cx,
@@ -321,26 +341,26 @@ function WeatherConditions({
 		const angle = getRelativeAngle(new Date(hour.time), now);
 		const code = hour.weathercode;
 		const isDay = hour.is_day === 1;
+		const minAngle = angle - Math.PI / 24;
 
+		// Sun rays — codes 0/1 (clear) → 5 rays; code 2 (partly cloudy) → 2 rays. Daytime only.
 		if (isDay && [0, 1, 2].includes(code)) {
 			const rays = code === 2 ? 2 : 5;
 			const totalAngle = Math.PI / 12;
 			const rayWidth = totalAngle / 16;
 			const raySpacing = totalAngle / rays;
-			const minAngle = angle - Math.PI / 24;
 			for (let i = 0; i < rays; i++) {
 				const a1 = minAngle + i * raySpacing + raySpacing / 2;
 				sunPaths.push({ d: pizzaPath(cx, cy, 800, a1, a1 + rayWidth), k: `${hour.time}-${i}` });
 			}
 		}
 
-		// Cloud/precipitation icons at radius 201
-		if (![0, 1].includes(code) || !isDay) {
-			const [ix, iy] = polar(201, angle);
-			const rot = (angle * 180) / Math.PI;
+		// Cloud + precipitation. Clear sky (codes 0/1) draws no cloud at all.
+		if (![0, 1].includes(code)) {
+			const angleDeg = (angle * 180) / Math.PI;
 			icons.push(
-				<g key={hour.time} transform={`translate(${cx + ix}, ${cy + iy}) rotate(${rot}) scale(2.5)`}>
-					<WeatherIcon code={code} isDay={isDay} />
+				<g key={hour.time} transform={`translate(${cx} ${cy}) rotate(${angleDeg})`}>
+					<WeatherIcon code={code} seed={hour.time} />
 				</g>,
 			);
 		}
@@ -356,101 +376,183 @@ function WeatherConditions({
 	);
 }
 
-function WeatherIcon({ code, isDay }: { code: number; isDay: boolean }) {
-	if (code === 2) {
-		return <Cloud />;
-	}
+function WeatherIcon({ code, seed }: { code: number; seed: string }) {
+	// Partly cloudy → sparse cloud, no precipitation.
+	if (code === 2) return <Cloud sparse seed={seed} />;
 
-	// Overcast base
-	const base = <Cloud />;
+	// Everything else → overcast cloud plus precipitation overlay.
+	const base = <Cloud seed={seed} />;
 
 	if ([45, 48].includes(code)) return <g>{base}<Fog /></g>;
-	if ([51, 56].includes(code)) return <g>{base}<Drizzle count={1} /></g>;
-	if ([53].includes(code)) return <g>{base}<Drizzle count={2} /></g>;
-	if ([55, 57].includes(code)) return <g>{base}<Drizzle count={3} /></g>;
-	if ([61, 66].includes(code)) return <g>{base}<RainDrops count={1} /></g>;
-	if ([63].includes(code)) return <g>{base}<RainDrops count={2} /></g>;
-	if ([65, 67].includes(code)) return <g>{base}<RainDrops count={3} /></g>;
-	if ([80].includes(code)) return <g>{base}<RainDrops count={1} /></g>;
-	if ([81].includes(code)) return <g>{base}<RainDrops count={2} /></g>;
-	if ([82].includes(code)) return <g>{base}<RainDrops count={3} /></g>;
-	if ([71, 85].includes(code)) return <g>{base}<SnowFlake count={1} /></g>;
-	if ([73].includes(code)) return <g>{base}<SnowFlake count={2} /></g>;
-	if ([75, 77, 86].includes(code)) return <g>{base}<SnowFlake count={3} /></g>;
-	if ([95, 96].includes(code)) return <g>{base}<RainDrops count={2} /><Lightning /></g>;
-	if ([99].includes(code)) return <g>{base}<RainDrops count={3} /><Lightning /></g>;
+	if ([51, 56].includes(code)) return <g>{base}<Precip type="drizzle" intensity={1} /></g>;
+	if ([53].includes(code)) return <g>{base}<Precip type="drizzle" intensity={2} /></g>;
+	if ([55, 57].includes(code)) return <g>{base}<Precip type="drizzle" intensity={3} /></g>;
+	if ([61, 66].includes(code)) return <g>{base}<Precip type="rain" intensity={1} /></g>;
+	if ([63].includes(code)) return <g>{base}<Precip type="rain" intensity={2} /></g>;
+	if ([65, 67].includes(code)) return <g>{base}<Precip type="rain" intensity={3} /></g>;
+	if ([80].includes(code)) return <g>{base}<Precip type="shower" intensity={1} /></g>;
+	if ([81].includes(code)) return <g>{base}<Precip type="shower" intensity={2} /></g>;
+	if ([82].includes(code)) return <g>{base}<Precip type="shower" intensity={3} /></g>;
+	if ([71, 85].includes(code)) return <g>{base}<Precip type="snow" intensity={1} /></g>;
+	if ([73].includes(code)) return <g>{base}<Precip type="snow" intensity={2} /></g>;
+	if ([75, 77, 86].includes(code)) return <g>{base}<Precip type="snow" intensity={3} /></g>;
+	if ([95, 96].includes(code))
+		return <g>{base}<Precip type="rain" intensity={3} /><Precip type="lightning" intensity={1} /></g>;
+	if ([99].includes(code))
+		return <g>{base}<Precip type="rain" intensity={3} /><Precip type="lightning" intensity={2} /></g>;
 
-	return base;
+	return base; // code 3: overcast
 }
 
-function Cloud() {
+// drawCloudy: filleted "pill" hugging radius 201 with outward bumps.
+function Cloud({ sparse, seed }: { sparse?: boolean; seed: string }) {
+	const radius = 201;
+	const height = 22;
+	const fillet = height / 2; // 11
+	// Original: (2 * Math.PI * (radius ^ 2)) / 24 — note `^` is bitwise XOR (201 ^ 2 = 203).
+	const baseWidth = (2 * Math.PI * (radius ^ 2)) / 24;
+
+	const widthModifier = sparse ? -20 : 5;
+	const c1Size = sparse ? 1.4 : 1.75;
+	const c1Pos = sparse ? 2 : 7;
+	const c2Size = sparse ? 0.9 : 1;
+	const c2Pos = sparse ? 8 : 17;
+
+	const maxWidth = baseWidth - fillet + widthModifier;
+
+	const rnd = seededRandom(seed);
+	const sign = rnd() > 0.5 ? 1 : -1;
+	const c1r = fillet * (c1Size + (rnd() - 0.5) * 0.2);
+	const c2r = fillet * (c2Size + (rnd() - 0.5) * 0.2);
+
 	return (
-		<g>
-			<rect x={-10} y={-2} width={20} height={7} rx={3} fill={C.WHITE} />
-			<circle cx={-6} cy={-2} r={5} fill={C.WHITE} />
-			<circle cx={4} cy={-4} r={4} fill={C.WHITE} />
+		<g fill={C.WHITE}>
+			<rect x={-maxWidth / 2} y={-radius - height / 2} width={maxWidth} height={height} />
+			<circle cx={-maxWidth / 2} cy={-radius} r={fillet} />
+			<circle cx={maxWidth / 2} cy={-radius} r={fillet} />
+			<circle cx={sign * c1Pos} cy={-radius + fillet - c1r} r={c1r} />
+			<circle cx={-sign * c2Pos} cy={-radius + fillet - 2 * c2r} r={c2r} />
 		</g>
 	);
 }
 
+// drawFog: stacked horizontal dashes just inside the cloud.
 function Fog() {
+	const heightIncrement = 6;
+	const spacing = 6;
+	const lines = [[10, 15, 5], [15, 10], [15]];
+	const segments: { x1: number; x2: number; y: number; k: string }[] = [];
+	let startY = -184;
+	lines.forEach((line, i) => {
+		const totalWidth =
+			line.reduce((acc, curr) => acc + curr, 0) + spacing * line.length - 1;
+		let startX = -totalWidth / 2;
+		line.forEach((length, j) => {
+			segments.push({ x1: startX, x2: startX + length, y: startY, k: `${i}-${j}` });
+			startX += length + spacing;
+		});
+		startY += heightIncrement;
+	});
 	return (
-		<g stroke={C.WHITE} strokeWidth={2} strokeLinecap="round">
-			<line x1={-8} y1={10} x2={8} y2={10} />
-			<line x1={-6} y1={14} x2={6} y2={14} />
-		</g>
-	);
-}
-
-function RainDrops({ count }: { count: 1 | 2 | 3 }) {
-	const xs = count === 1 ? [0] : count === 2 ? [-5, 5] : [-8, 0, 8];
-	return (
-		<g fill={C.BLUE}>
-			{xs.map((x, i) => (
-				<ellipse key={i} cx={x} cy={14 + (i % 2) * 4} rx={2.5} ry={4} />
+		<g stroke={C.WHITE} strokeWidth={3} strokeLinecap="round">
+			{segments.map(({ x1, x2, y, k }) => (
+				<line key={k} x1={x1} y1={y} x2={x2} y2={y} />
 			))}
 		</g>
 	);
 }
 
-function Drizzle({ count }: { count: 1 | 2 | 3 }) {
-	const xs = count === 1 ? [0] : count === 2 ? [-4, 4] : [-7, 0, 7];
-	return (
-		<g stroke={C.BLUE} strokeWidth={2} strokeLinecap="round">
-			{xs.map((x, i) => (
-				<line key={i} x1={x} y1={10} x2={x - 2} y2={18} />
-			))}
-		</g>
-	);
+// drawPrecipitation: rain/drizzle/shower/snow/lightning at radius ~175.
+function Precip({
+	type,
+	intensity,
+}: {
+	type: "rain" | "drizzle" | "shower" | "snow" | "lightning";
+	intensity: 1 | 2 | 3;
+}) {
+	const startY = -175;
+	const spacing = 12;
+
+	const positions: [number, number][] =
+		intensity === 1
+			? [[0, startY]]
+			: intensity === 2
+				? [[-spacing * 0.7, startY], [spacing * 0.7, startY + spacing * 0.4]]
+				: [[-spacing, startY], [0, startY + spacing], [spacing, startY]];
+
+	return <g>{positions.map(([x, y], i) => renderPrecip(type, x, y, `${i}`))}</g>;
 }
 
-function SnowFlake({ count }: { count: 1 | 2 | 3 }) {
-	const xs = count === 1 ? [0] : count === 2 ? [-5, 5] : [-8, 0, 8];
-	return (
-		<g stroke={C.WHITE} strokeWidth={2} strokeLinecap="round">
-			{xs.map((x) =>
-				Array.from({ length: 3 }, (_, i) => {
-					const a = (i * Math.PI) / 3;
-					return (
-						<line
-							key={i}
-							x1={x + Math.cos(a) * 6}
-							y1={14 + Math.sin(a) * 6}
-							x2={x - Math.cos(a) * 6}
-							y2={14 - Math.sin(a) * 6}
-						/>
-					);
-				}),
-			)}
-		</g>
-	);
+function renderPrecip(type: string, x: number, y: number, key: string) {
+	switch (type) {
+		case "rain":
+			return rainDrop(x, y, 4, key);
+		case "shower": {
+			const size = 3;
+			const offset = 4;
+			const sp = 7;
+			return (
+				<g key={key}>
+					{rainDrop(x - sp / 2, y + offset, size, "a")}
+					{rainDrop(x + sp / 2, y, size, "b")}
+				</g>
+			);
+		}
+		case "drizzle": {
+			const size = 6;
+			const offset = size / 4;
+			const sp = size / 2;
+			return (
+				<g key={key} stroke={C.BLUE} strokeWidth={2.5} strokeLinecap="round">
+					<line x1={x - sp} y1={y - size + offset} x2={x - sp} y2={y + offset} />
+					<line x1={x + sp} y1={y - size - offset} x2={x + sp} y2={y - offset} />
+				</g>
+			);
+		}
+		case "snow": {
+			const h = 10 / 2;
+			return (
+				<g key={key} stroke={C.WHITE} strokeWidth={2.5} strokeLinecap="round">
+					{[0, 1, 2].map((i) => {
+						const t = (i * Math.PI) / 3;
+						return (
+							<line
+								key={i}
+								x1={x + h * Math.sin(t)}
+								y1={y - h * Math.cos(t)}
+								x2={x - h * Math.sin(t)}
+								y2={y + h * Math.cos(t)}
+							/>
+						);
+					})}
+				</g>
+			);
+		}
+		case "lightning": {
+			const yOff = -25;
+			const pts: [number, number][] = [
+				[-2, 0], [-3, 17], [0, 17], [-2, 30], [5, 14], [2, 14], [4, 0],
+			];
+			return (
+				<polygon
+					key={key}
+					points={pts.map(([px, py]) => `${x + px},${y + yOff + py}`).join(" ")}
+					fill={C.YELLOW}
+				/>
+			);
+		}
+		default:
+			return null;
+	}
 }
 
-function Lightning() {
+// Filled blue teardrop: pointed top, rounded bottom (matches canvas rain()).
+function rainDrop(x: number, y: number, size: number, key: string) {
 	return (
-		<polygon
-			points="-2,8 -3,16 0,16 -2,24 5,12 2,12 4,8"
-			fill={C.YELLOW}
+		<path
+			key={key}
+			fill={C.BLUE}
+			d={`M ${x - size} ${y} L ${x} ${y - 8} L ${x + size} ${y} A ${size} ${size} 0 0 1 ${x - size} ${y} Z`}
 		/>
 	);
 }
