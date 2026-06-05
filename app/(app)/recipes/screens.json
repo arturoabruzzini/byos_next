@@ -171,6 +171,43 @@
 		"version": "0.1.0",
 		"category": "display-components"
 	},
+	"tides": {
+		"title": "Tides & Weather",
+		"published": true,
+		"createdAt": "2026-06-05T00:00:00Z",
+		"updatedAt": "2026-06-05T00:00:00Z",
+		"description": "A radial 24-hour clock showing tide height, wave height, weather conditions, moon phase, wind, and clothing recommendation. Requires a Stormglass API key for tidal and astronomical data.",
+		"componentPath": "./screens/tides",
+		"hasDataFetch": true,
+		"props": {},
+		"params": {
+			"latitude": {
+				"type": "number",
+				"label": "Latitude",
+				"description": "Latitude of the location to show tides for",
+				"default": 50.8171,
+				"placeholder": "50.8171"
+			},
+			"longitude": {
+				"type": "number",
+				"label": "Longitude",
+				"description": "Longitude of the location to show tides for",
+				"default": -0.1189,
+				"placeholder": "-0.1189"
+			},
+			"stormglass_api_key": {
+				"type": "string",
+				"label": "Stormglass API Key",
+				"description": "API key from stormglass.io — used for tidal heights and astronomical data. Without this key, weather and wave data still renders.",
+				"default": "",
+				"placeholder": "your-stormglass-api-key"
+			}
+		},
+		"tags": ["svg", "tides", "weather", "marine", "api", "live-data", "configurable", "color"],
+		"renderSettings": {},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
 	"not-found": {
 		"title": "Not Found Recipe",
 		"published": true,
