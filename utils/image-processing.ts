@@ -7,6 +7,105 @@ export const quantizeValue = (value: number, levels: number): number => {
 	return Math.min(255, Math.max(0, quantized));
 };
 
+export type RGB = [number, number, number];
+
+/** Parse "#RRGGBB" or "RRGGBB" into an [r,g,b] tuple. */
+export const hexToRgb = (hex: string): RGB => {
+	const h = hex.replace("#", "");
+	return [
+		parseInt(h.slice(0, 2), 16),
+		parseInt(h.slice(2, 4), 16),
+		parseInt(h.slice(4, 6), 16),
+	];
+};
+
+/** Index of the palette color nearest to (r,g,b) by squared Euclidean distance. Assumes a non-empty palette. */
+export const nearestColorIndex = (
+	r: number,
+	g: number,
+	b: number,
+	palette: RGB[],
+): number => {
+	let best = 0;
+	let bestDist = Number.POSITIVE_INFINITY;
+	for (let i = 0; i < palette.length; i++) {
+		const [pr, pg, pb] = palette[i];
+		const dr = r - pr;
+		const dg = g - pg;
+		const db = b - pb;
+		const dist = dr * dr + dg * dg + db * db;
+		if (dist < bestDist) {
+			bestDist = dist;
+			best = i;
+		}
+	}
+	return best;
+};
+
+/** Flat (no diffusion) nearest-color quantization of an RGB buffer to a palette. */
+export const flatNearestColor = (
+	rgb: Uint8Array,
+	palette: RGB[],
+): Uint8Array => {
+	const out = new Uint8Array(rgb.length);
+	for (let i = 0; i < rgb.length; i += 3) {
+		const [r, g, b] =
+			palette[nearestColorIndex(rgb[i], rgb[i + 1], rgb[i + 2], palette)];
+		out[i] = r;
+		out[i + 1] = g;
+		out[i + 2] = b;
+	}
+	return out;
+};
+
+/**
+ * Floyd-Steinberg error diffusion in RGB space, snapping each pixel to the
+ * nearest palette color. Input/output are packed RGB (3 bytes/pixel).
+ */
+export const ditherFloydSteinbergColor = (
+	rgb: Uint8Array,
+	width: number,
+	height: number,
+	palette: RGB[],
+): Uint8Array => {
+	const buf = Float32Array.from(rgb);
+	const out = new Uint8Array(rgb.length);
+	const diffuse = (
+		i: number,
+		er: number,
+		eg: number,
+		eb: number,
+		f: number,
+	) => {
+		buf[i] += er * f;
+		buf[i + 1] += eg * f;
+		buf[i + 2] += eb * f;
+	};
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const i = (y * width + x) * 3;
+			const r = buf[i];
+			const g = buf[i + 1];
+			const b = buf[i + 2];
+			const [nr, ng, nb] = palette[nearestColorIndex(r, g, b, palette)];
+			out[i] = nr;
+			out[i + 1] = ng;
+			out[i + 2] = nb;
+			const er = r - nr;
+			const eg = g - ng;
+			const eb = b - nb;
+			if (x + 1 < width) diffuse(i + 3, er, eg, eb, 7 / 16);
+			if (y + 1 < height) {
+				const down = i + width * 3;
+				if (x > 0) diffuse(down - 3, er, eg, eb, 3 / 16);
+				diffuse(down, er, eg, eb, 5 / 16);
+				if (x + 1 < width) diffuse(down + 3, er, eg, eb, 1 / 16);
+			}
+		}
+	}
+	return out;
+};
+
 /** Quantize each pixel to the nearest gray level with no dithering */
 export const quantize = (grayscale: Uint8Array, levels = 2): Uint8Array => {
 	const result = new Uint8Array(grayscale.length);
@@ -205,14 +304,16 @@ export const applyEdgeSnap = (
 	return result;
 };
 
-export enum DitheringMethod {
-	THRESHOLD = "threshold",
-	FLOYD_STEINBERG = "floyd-steinberg",
-	ATKINSON = "atkinson",
-	BAYER = "bayer",
-	RANDOM = "random",
-	NONE = "none",
-}
+export const DitheringMethod = {
+	THRESHOLD: "threshold",
+	FLOYD_STEINBERG: "floyd-steinberg",
+	ATKINSON: "atkinson",
+	BAYER: "bayer",
+	RANDOM: "random",
+	NONE: "none",
+} as const;
+export type DitheringMethod =
+	(typeof DitheringMethod)[keyof typeof DitheringMethod];
 
 export interface DitheringOptions {
 	width?: number;
