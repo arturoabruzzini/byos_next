@@ -224,7 +224,8 @@ export async function updateDevice(
 	if (device.image_format !== undefined)
 		updateData.image_format = device.image_format;
 	if (device.model !== undefined) updateData.model = device.model;
-	if (device.palette_id !== undefined) updateData.palette_id = device.palette_id;
+	if (device.palette_id !== undefined)
+		updateData.palette_id = device.palette_id;
 	if (device.dithering_method !== undefined)
 		updateData.dithering_method = device.dithering_method;
 

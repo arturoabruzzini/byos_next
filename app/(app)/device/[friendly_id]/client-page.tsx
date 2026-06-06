@@ -64,6 +64,32 @@ export default function DeviceClientPage({
 	const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 	const [friendlyIdError, setFriendlyIdError] = useState<string | null>(null);
 
+	const [availableModels, setAvailableModels] = useState<
+		{ name: string; label: string; palette_ids: string[] }[]
+	>([]);
+	const [availablePalettes, setAvailablePalettes] = useState<
+		{ id: string; name: string; colors?: string[] }[]
+	>([]);
+
+	useEffect(() => {
+		let active = true;
+		Promise.all([
+			fetch("/api/models").then((r) => r.json()),
+			fetch("/api/palettes").then((r) => r.json()),
+		])
+			.then(([models, palettes]) => {
+				if (!active) return;
+				setAvailableModels(models?.data ?? []);
+				setAvailablePalettes(palettes?.data ?? []);
+			})
+			.catch(() => {
+				/* registry optional; selectors degrade to empty lists */
+			});
+		return () => {
+			active = false;
+		};
+	}, []);
+
 	// State for device size preset
 	const [deviceSizePreset, setDeviceSizePreset] = useState<DeviceSizePreset>(
 		() => {
@@ -470,6 +496,8 @@ export default function DeviceClientPage({
 					onAddTimeRange={handleAddTimeRange}
 					onSubmit={handleSubmit}
 					onCancel={handleCancel}
+					availableModels={availableModels}
+					availablePalettes={availablePalettes}
 				/>
 			) : (
 				<DeviceView device={device} playlistScreens={playlistScreens} />

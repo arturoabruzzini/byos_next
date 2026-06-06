@@ -12,13 +12,13 @@ import {
 	isLiquidRecipe,
 	renderLiquidRecipe,
 } from "@/lib/recipes/liquid-renderer";
-import { packGrayscaleBmp } from "@/utils/render-bmp";
-import { quantizeToPalette } from "@/utils/image-processing";
-import { encodePng } from "@/utils/encode-png";
 import {
 	defaultGrayscaleProfile,
 	type ResolvedRenderProfile,
 } from "@/lib/trmnl/render-profile";
+import { encodePng } from "@/utils/encode-png";
+import { quantizeToPalette } from "@/utils/image-processing";
+import { packGrayscaleBmp } from "@/utils/render-bmp";
 import { renderWithSatori } from "./renderers/satori";
 import { renderWithTakumi } from "./renderers/takumi";
 
@@ -342,7 +342,11 @@ export const renderRecipeOutputs = cache(
 		// Resolve the render profile (palette + method). Default to a grayscale
 		// profile derived from the legacy `grayscale` level count.
 		const profile: ResolvedRenderProfile =
-			renderProfile ?? defaultGrayscaleProfile(grayscale ?? 2, needsPng && !needsBitmap ? "png" : "bmp");
+			renderProfile ??
+			defaultGrayscaleProfile(
+				grayscale ?? 2,
+				needsPng && !needsBitmap ? "png" : "bmp",
+			);
 
 		// Produce a single full-color RGB raster at the final dimensions, then
 		// quantize once. Both PNG and BMP encode from that same dithered raster.
@@ -360,9 +364,15 @@ export const renderRecipeOutputs = cache(
 				.raw()
 				.toBuffer({ resolveWithObject: true });
 
-			quantized = quantizeToPalette(new Uint8Array(rgb), imageWidth, imageHeight, profile, {
-				applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
-			});
+			quantized = quantizeToPalette(
+				new Uint8Array(rgb),
+				imageWidth,
+				imageHeight,
+				profile,
+				{
+					applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
+				},
+			);
 		} catch (error) {
 			logger.error(`Error quantizing ${slug}:`, error);
 			return results;
@@ -384,9 +394,14 @@ export const renderRecipeOutputs = cache(
 		if (needsBitmap) {
 			if (quantized.channels === 1) {
 				try {
-					results.bitmap = packGrayscaleBmp(quantized.data, imageWidth, imageHeight, {
-						grayscale: profile.levels,
-					});
+					results.bitmap = packGrayscaleBmp(
+						quantized.data,
+						imageWidth,
+						imageHeight,
+						{
+							grayscale: profile.levels,
+						},
+					);
 				} catch (error) {
 					logger.error(`Error packing BMP for ${slug}:`, error);
 				}
@@ -394,11 +409,15 @@ export const renderRecipeOutputs = cache(
 				// Color palette requested as BMP: BMP is grayscale-only. Re-quantize
 				// to a black/white grayscale profile so a .bmp URL always yields a
 				// valid grayscale BMP. (Display route forces color palettes to PNG.)
-				logger.warn(`BMP requested for color palette ${profile.paletteId}; falling back to grayscale BMP`);
+				logger.warn(
+					`BMP requested for color palette ${profile.paletteId}; falling back to grayscale BMP`,
+				);
 				try {
 					let pipeline = sharp(pngBuffer);
 					if (imageOptions.width !== imageWidth) {
-						pipeline = pipeline.resize(imageWidth, imageHeight, { kernel: sharp.kernel.nearest });
+						pipeline = pipeline.resize(imageWidth, imageHeight, {
+							kernel: sharp.kernel.nearest,
+						});
 					}
 					const { data: rgb } = await pipeline
 						.resize(imageWidth, imageHeight, { fit: "fill" })
@@ -406,10 +425,18 @@ export const renderRecipeOutputs = cache(
 						.raw()
 						.toBuffer({ resolveWithObject: true });
 					const bwProfile = defaultGrayscaleProfile(2, "bmp");
-					const { data: gray } = quantizeToPalette(new Uint8Array(rgb), imageWidth, imageHeight, bwProfile, {
-						applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
+					const { data: gray } = quantizeToPalette(
+						new Uint8Array(rgb),
+						imageWidth,
+						imageHeight,
+						bwProfile,
+						{
+							applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
+						},
+					);
+					results.bitmap = packGrayscaleBmp(gray, imageWidth, imageHeight, {
+						grayscale: 2,
 					});
-					results.bitmap = packGrayscaleBmp(gray, imageWidth, imageHeight, { grayscale: 2 });
 				} catch (error) {
 					logger.error(`Error packing fallback BMP for ${slug}:`, error);
 				}

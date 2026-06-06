@@ -71,6 +71,8 @@ interface DeviceEditFormProps {
 	onAddTimeRange: () => void;
 	onSubmit: (e: React.FormEvent) => void;
 	onCancel: () => void;
+	availableModels: { name: string; label: string; palette_ids: string[] }[];
+	availablePalettes: { id: string; name: string; colors?: string[] }[];
 }
 
 const getGrayscaleLevels = (grayscale: number | null | undefined): number => {
@@ -115,6 +117,8 @@ export default function DeviceEditForm({
 	onAddTimeRange,
 	onSubmit,
 	onCancel: _onCancel,
+	availableModels,
+	availablePalettes,
 }: DeviceEditFormProps) {
 	const isPortrait = editedDevice.screen_orientation === "portrait";
 	const deviceWidth = isPortrait
@@ -125,6 +129,18 @@ export default function DeviceEditForm({
 		: editedDevice.screen_height || DEFAULT_IMAGE_HEIGHT;
 	const grayscaleLevels = getGrayscaleLevels(editedDevice.grayscale);
 
+	const selectedModel = availableModels.find(
+		(m) => m.name === editedDevice.model,
+	);
+	const paletteIdsForModel = selectedModel?.palette_ids ?? [];
+	const scopedPalettes = availablePalettes.filter((p) =>
+		paletteIdsForModel.length ? paletteIdsForModel.includes(p.id) : true,
+	);
+	const selectedPalette = availablePalettes.find(
+		(p) => p.id === editedDevice.palette_id,
+	);
+	const isColorPalette = !!selectedPalette?.colors?.length;
+
 	const isMixup =
 		editedDevice.display_mode === DeviceDisplayMode.MIXUP &&
 		!!editedDevice.mixup_id;
@@ -132,9 +148,17 @@ export default function DeviceEditForm({
 		editedDevice.display_mode === DeviceDisplayMode.PLAYLIST &&
 		!!editedDevice.playlist_id;
 
+	const previewExt = isColorPalette
+		? "png"
+		: editedDevice?.image_format === "png"
+			? "png"
+			: "bmp";
+	const previewPalette = editedDevice.palette_id
+		? `&palette=${encodeURIComponent(editedDevice.palette_id)}&dither=${editedDevice.dithering_method ?? "floyd-steinberg"}`
+		: `&grayscale=${grayscaleLevels}`;
 	const heroSrc = isMixup
 		? `/api/bitmap/mixup/${editedDevice.mixup_id}.bmp?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`
-		: `/api/bitmap/${editedDevice?.screen || "simple-text"}.bmp?width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}`;
+		: `/api/bitmap/${editedDevice?.screen || "simple-text"}.${previewExt}?width=${deviceWidth}&height=${deviceHeight}${previewPalette}`;
 
 	return (
 		<form onSubmit={onSubmit}>
@@ -515,21 +539,77 @@ export default function DeviceEditForm({
 							</Field>
 
 							<Field
-								label="Grayscale levels"
-								hint="Number of gray levels for image rendering."
+								label="Model"
+								hint="Selecting a model scopes the available palettes."
+							>
+								<Select
+									value={editedDevice.model ?? ""}
+									onValueChange={(value) => onSelectChange("model", value)}
+								>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder="Select model…" />
+									</SelectTrigger>
+									<SelectContent>
+										{availableModels.map((m) => (
+											<SelectItem key={m.name} value={m.name}>
+												{m.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+
+							<Field
+								label="Palette"
+								hint="Colors/levels the screen is dithered to."
+							>
+								<Select
+									value={editedDevice.palette_id ?? ""}
+									onValueChange={(value) => onSelectChange("palette_id", value)}
+								>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder="Select palette…" />
+									</SelectTrigger>
+									<SelectContent>
+										{scopedPalettes.map((p) => (
+											<SelectItem key={p.id} value={p.id}>
+												<span className="flex items-center gap-2">
+													{p.colors?.length ? (
+														<span className="flex">
+															{p.colors.slice(0, 8).map((c, i) => (
+																<span
+																	key={`${p.id}-${i}`}
+																	className="h-3 w-3 rounded-[2px] border border-border/40"
+																	style={{ backgroundColor: c }}
+																/>
+															))}
+														</span>
+													) : null}
+													{p.name}
+												</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+
+							<Field
+								label="Dithering"
+								hint="Floyd-Steinberg diffuses error for smoother gradients."
 							>
 								<ToggleGroup
 									type="single"
-									value={String(grayscaleLevels)}
+									value={editedDevice.dithering_method ?? "floyd-steinberg"}
 									onValueChange={(value) => {
-										if (value) onSelectChange("grayscale", value);
+										if (value) onSelectChange("dithering_method", value);
 									}}
 									variant="outline"
-									className="grid w-fit grid-cols-3"
+									className="grid w-fit grid-cols-2"
 								>
-									<ToggleGroupItem value="2">2</ToggleGroupItem>
-									<ToggleGroupItem value="4">4</ToggleGroupItem>
-									<ToggleGroupItem value="16">16</ToggleGroupItem>
+									<ToggleGroupItem value="floyd-steinberg">
+										Floyd-Steinberg
+									</ToggleGroupItem>
+									<ToggleGroupItem value="none">None</ToggleGroupItem>
 								</ToggleGroup>
 							</Field>
 
@@ -539,14 +619,21 @@ export default function DeviceEditForm({
 							>
 								<ToggleGroup
 									type="single"
-									value={editedDevice?.image_format ?? "bmp"}
+									value={
+										isColorPalette
+											? "png"
+											: (editedDevice?.image_format ?? "bmp")
+									}
 									onValueChange={(value) => {
-										if (value) onSelectChange("image_format", value);
+										if (value && !isColorPalette)
+											onSelectChange("image_format", value);
 									}}
 									variant="outline"
 									className="grid w-fit grid-cols-2"
 								>
-									<ToggleGroupItem value="bmp">BMP</ToggleGroupItem>
+									<ToggleGroupItem value="bmp" disabled={isColorPalette}>
+										BMP
+									</ToggleGroupItem>
 									<ToggleGroupItem value="png">PNG</ToggleGroupItem>
 								</ToggleGroup>
 							</Field>

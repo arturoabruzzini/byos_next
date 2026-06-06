@@ -15,9 +15,9 @@ import {
 	type TrmnlPalette,
 } from "./registry";
 import {
-	resolveRenderProfile,
 	type DitheringMethodName,
 	type ResolvedRenderProfile,
+	resolveRenderProfile,
 } from "./render-profile";
 
 export const DEFAULT_MODEL_NAME = "og_plus";
@@ -90,7 +90,8 @@ export async function resolveDeviceRenderProfile(opts: {
 	imageFormat?: "png" | "bmp";
 }): Promise<ResolvedRenderProfile> {
 	const { model, palette } = await getDeviceProfile(opts.model, opts.paletteId);
-	const resolvedPalette = palette ?? (await findPalette(model.palette_ids[0] ?? "bw"));
+	const resolvedPalette =
+		palette ?? (await findPalette(model.palette_ids[0] ?? "bw"));
 	return resolveRenderProfile(resolvedPalette, {
 		ditheringMethod: opts.ditheringMethod,
 		imageFormat: opts.imageFormat,
