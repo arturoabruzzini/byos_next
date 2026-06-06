@@ -309,6 +309,10 @@ export default function DeviceClientPage({
 				screen_height: editedDevice.screen_height,
 				screen_orientation: editedDevice.screen_orientation,
 				grayscale: editedDevice.grayscale,
+				image_format: editedDevice.image_format,
+				model: editedDevice.model,
+				palette_id: editedDevice.palette_id,
+				dithering_method: editedDevice.dithering_method,
 			});
 
 			if (result.success) {

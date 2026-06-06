@@ -50,7 +50,11 @@ export async function GET(
 		// Resolve a palette-aware profile. If `palette` is absent, fall back to a
 		// grayscale profile derived from the legacy `grayscale` level count.
 		const profile = paletteParam
-			? await resolveProfileFromPalette(paletteParam, ditherParam, isPng ? "png" : "bmp")
+			? await resolveProfileFromPalette(
+					paletteParam,
+					ditherParam,
+					isPng ? "png" : "bmp",
+				)
 			: undefined;
 
 		logger.info(
@@ -114,7 +118,9 @@ const renderRecipeImage = cache(
 		profileKey?: string, // serialized profile for cache identity
 	) => {
 		const profile = profileKey
-			? (JSON.parse(profileKey) as import("@/lib/trmnl/render-profile").ResolvedRenderProfile)
+			? (JSON.parse(
+					profileKey,
+				) as import("@/lib/trmnl/render-profile").ResolvedRenderProfile)
 			: undefined;
 		const renders = await renderRecipeToImage({
 			slug: recipeId,
