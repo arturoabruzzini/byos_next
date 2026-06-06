@@ -8,6 +8,7 @@ import {
 	renderRecipeOutputs,
 	renderRecipeToImage,
 } from "@/lib/recipes/recipe-renderer";
+import { resolveProfileFromPalette } from "@/lib/trmnl/device-profile";
 import {
 	parseRequestHeaders,
 	resolveUserIdFromApiKey,
@@ -43,6 +44,15 @@ export async function GET(
 		const validHeight = height > 0 ? height : DEFAULT_IMAGE_HEIGHT;
 		const grayscaleLevels = grayscaleParam ? parseInt(grayscaleParam, 10) : 2;
 
+		const paletteParam = searchParams.get("palette");
+		const ditherParam = searchParams.get("dither");
+
+		// Resolve a palette-aware profile. If `palette` is absent, fall back to a
+		// grayscale profile derived from the legacy `grayscale` level count.
+		const profile = paletteParam
+			? await resolveProfileFromPalette(paletteParam, ditherParam, isPng ? "png" : "bmp")
+			: undefined;
+
 		logger.info(
 			`Bitmap request for: ${bitmapPath} in ${validWidth}x${validHeight} with ${grayscaleLevels} gray levels`,
 		);
@@ -63,6 +73,7 @@ export async function GET(
 			isPng ? "png" : "bitmap",
 			userId,
 			cookieHeader || undefined,
+			profile ? JSON.stringify(profile) : undefined,
 		);
 
 		if (
@@ -100,13 +111,18 @@ const renderRecipeImage = cache(
 		format: "bitmap" | "png" = "bitmap",
 		userId: string | null = null,
 		cookies?: string,
+		profileKey?: string, // serialized profile for cache identity
 	) => {
+		const profile = profileKey
+			? (JSON.parse(profileKey) as import("@/lib/trmnl/render-profile").ResolvedRenderProfile)
+			: undefined;
 		const renders = await renderRecipeToImage({
 			slug: recipeId,
 			imageWidth: width,
 			imageHeight: height,
 			formats: [format],
 			grayscale: grayscaleLevels,
+			profile,
 			userId,
 			cookies,
 		});
