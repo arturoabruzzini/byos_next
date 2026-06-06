@@ -48,6 +48,7 @@ export type Device = {
 	image_format: string;
 	model: string | null;
 	palette_id: string | null;
+	dithering_method: string;
 };
 
 export type Playlist = {

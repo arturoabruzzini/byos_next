@@ -96,6 +96,10 @@ export interface Devices {
 	 * Optional palette override when the device model supports multiple palettes. NULL means use the model's first declared palette as default.
 	 */
 	palette_id: string | null;
+	/**
+	 * Dithering algorithm applied when rendering to the device palette: 'floyd-steinberg' (default) or 'none' (flat nearest-color).
+	 */
+	dithering_method: Generated<string>;
 	playlist_id: string | null;
 	refresh_schedule: Json | null;
 	/**
