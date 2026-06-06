@@ -12,7 +12,13 @@ import {
 	isLiquidRecipe,
 	renderLiquidRecipe,
 } from "@/lib/recipes/liquid-renderer";
-import { DitheringMethod, renderBmp } from "@/utils/render-bmp";
+import { packGrayscaleBmp } from "@/utils/render-bmp";
+import { quantizeToPalette } from "@/utils/image-processing";
+import { encodePng } from "@/utils/encode-png";
+import {
+	defaultGrayscaleProfile,
+	type ResolvedRenderProfile,
+} from "@/lib/trmnl/render-profile";
 import { renderWithSatori } from "./renderers/satori";
 import { renderWithTakumi } from "./renderers/takumi";
 
@@ -251,6 +257,7 @@ type RenderOptions = {
 	imageHeight: number;
 	formats?: RenderFormats;
 	grayscale?: number; // Number of gray levels: 2, 4, or 16
+	profile?: ResolvedRenderProfile; // palette-aware render profile; defaults to grayscale
 	html?: string; // When set, uses Puppeteer screenshot instead of Takumi/Satori
 	cookies?: string; // Cookie header to forward to browser renderer
 };
@@ -275,6 +282,7 @@ export const renderRecipeOutputs = cache(
 		imageHeight,
 		formats = ["bitmap", "png"],
 		grayscale,
+		profile: renderProfile,
 		html,
 		cookies,
 	}: RenderOptions): Promise<RenderResults> => {
@@ -331,27 +339,80 @@ export const renderRecipeOutputs = cache(
 			return results;
 		}
 
+		// Resolve the render profile (palette + method). Default to a grayscale
+		// profile derived from the legacy `grayscale` level count.
+		const profile: ResolvedRenderProfile =
+			renderProfile ?? defaultGrayscaleProfile(grayscale ?? 2, needsPng && !needsBitmap ? "png" : "bmp");
+
+		// Produce a single full-color RGB raster at the final dimensions, then
+		// quantize once. Both PNG and BMP encode from that same dithered raster.
+		let quantized: { data: Uint8Array; channels: 1 | 3 };
+		try {
+			let pipeline = sharp(pngBuffer);
+			if (imageOptions.width !== imageWidth) {
+				pipeline = pipeline.resize(imageWidth, imageHeight, {
+					kernel: sharp.kernel.nearest,
+				});
+			}
+			const { data: rgb } = await pipeline
+				.resize(imageWidth, imageHeight, { fit: "fill" })
+				.removeAlpha()
+				.raw()
+				.toBuffer({ resolveWithObject: true });
+
+			quantized = quantizeToPalette(new Uint8Array(rgb), imageWidth, imageHeight, profile, {
+				applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
+			});
+		} catch (error) {
+			logger.error(`Error quantizing ${slug}:`, error);
+			return results;
+		}
+
 		if (needsPng) {
-			results.png =
-				imageOptions.width !== imageWidth
-					? await sharp(pngBuffer)
-							.resize(imageWidth, imageHeight)
-							.png()
-							.toBuffer()
-					: pngBuffer;
+			try {
+				results.png = await encodePng(
+					quantized.data,
+					imageWidth,
+					imageHeight,
+					quantized.channels,
+				);
+			} catch (error) {
+				logger.error(`Error encoding PNG for ${slug}:`, error);
+			}
 		}
 
 		if (needsBitmap) {
-			try {
-				results.bitmap = await renderBmp(pngBuffer, {
-					ditheringMethod: DitheringMethod.FLOYD_STEINBERG,
-					width: imageWidth,
-					height: imageHeight,
-					applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
-					...(grayscale !== undefined && { grayscale }),
-				});
-			} catch (error) {
-				logger.error(`Error generating bitmap for ${slug}:`, error);
+			if (quantized.channels === 1) {
+				try {
+					results.bitmap = packGrayscaleBmp(quantized.data, imageWidth, imageHeight, {
+						grayscale: profile.levels,
+					});
+				} catch (error) {
+					logger.error(`Error packing BMP for ${slug}:`, error);
+				}
+			} else {
+				// Color palette requested as BMP: BMP is grayscale-only. Re-quantize
+				// to a black/white grayscale profile so a .bmp URL always yields a
+				// valid grayscale BMP. (Display route forces color palettes to PNG.)
+				logger.warn(`BMP requested for color palette ${profile.paletteId}; falling back to grayscale BMP`);
+				try {
+					let pipeline = sharp(pngBuffer);
+					if (imageOptions.width !== imageWidth) {
+						pipeline = pipeline.resize(imageWidth, imageHeight, { kernel: sharp.kernel.nearest });
+					}
+					const { data: rgb } = await pipeline
+						.resize(imageWidth, imageHeight, { fit: "fill" })
+						.removeAlpha()
+						.raw()
+						.toBuffer({ resolveWithObject: true });
+					const bwProfile = defaultGrayscaleProfile(2, "bmp");
+					const { data: gray } = quantizeToPalette(new Uint8Array(rgb), imageWidth, imageHeight, bwProfile, {
+						applyEdgeSnap: config?.renderSettings?.applyEdgeSnap ?? true,
+					});
+					results.bitmap = packGrayscaleBmp(gray, imageWidth, imageHeight, { grayscale: 2 });
+				} catch (error) {
+					logger.error(`Error packing fallback BMP for ${slug}:`, error);
+				}
 			}
 		}
 
@@ -475,6 +536,7 @@ export async function renderRecipeToImage({
 	imageHeight,
 	formats = ["bitmap", "png"],
 	grayscale,
+	profile,
 	userId,
 	cookies,
 }: {
@@ -483,6 +545,7 @@ export async function renderRecipeToImage({
 	imageHeight: number;
 	formats?: RenderFormats;
 	grayscale?: number;
+	profile?: ResolvedRenderProfile;
 	userId?: string | null;
 	cookies?: string;
 }): Promise<RenderResults> {
@@ -497,6 +560,7 @@ export async function renderRecipeToImage({
 			imageHeight,
 			formats,
 			grayscale,
+			profile,
 			cookies,
 		});
 	}
@@ -517,6 +581,7 @@ export async function renderRecipeToImage({
 		imageHeight,
 		formats,
 		grayscale,
+		profile,
 		cookies,
 	});
 }
