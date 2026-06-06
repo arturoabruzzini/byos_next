@@ -1,3 +1,5 @@
+import type { ResolvedRenderProfile } from "@/lib/trmnl/render-profile";
+
 /** Quantize a single pixel value to the nearest available gray level
  *  e.g. levels=2 → 0 or 255, levels=4 → 0, 85, 170, 256
  **/
@@ -412,4 +414,49 @@ export function applyDithering(
 	}
 
 	return result;
+}
+
+/**
+ * Quantize a full-color RGB raster to a device's palette, returning the
+ * dithered raster plus its channel count (1 = grayscale, 3 = color). This is
+ * the single pass that both the PNG and BMP encoders derive from.
+ */
+export function quantizeToPalette(
+	rgb: Uint8Array,
+	width: number,
+	height: number,
+	profile: ResolvedRenderProfile,
+	opts: { applyEdgeSnap?: boolean } = {},
+): { data: Uint8Array; channels: 1 | 3 } {
+	if (profile.isContinuous) {
+		return { data: rgb, channels: 3 };
+	}
+
+	if (profile.isColor && profile.colors) {
+		const data =
+			profile.ditheringMethod === "none"
+				? flatNearestColor(rgb, profile.colors)
+				: ditherFloydSteinbergColor(rgb, width, height, profile.colors);
+		return { data, channels: 3 };
+	}
+
+	// Grayscale: luma-convert then reuse the existing leveled dithering.
+	const gray = new Uint8Array(width * height);
+	for (let p = 0; p < gray.length; p++) {
+		const i = p * 3;
+		gray[p] = Math.round(
+			0.299 * rgb[i] + 0.587 * rgb[i + 1] + 0.114 * rgb[i + 2],
+		);
+	}
+	const method =
+		profile.ditheringMethod === "none"
+			? DitheringMethod.NONE
+			: DitheringMethod.FLOYD_STEINBERG;
+	const data = applyDithering(method, gray, {
+		width,
+		height,
+		levels: profile.levels,
+		applyEdgeSnap: opts.applyEdgeSnap ?? false,
+	});
+	return { data, channels: 1 };
 }
