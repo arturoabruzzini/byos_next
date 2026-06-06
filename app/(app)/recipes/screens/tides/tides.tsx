@@ -19,7 +19,7 @@ const C = {
   BLUE: "#0000ff",
   RED: "#ff0000",
   YELLOW: "#ffff00",
-  ORANGE: "#ff8000",
+  ORANGE: "#FFA500",
 } as const;
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
