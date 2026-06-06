@@ -8,6 +8,7 @@ import {
 	DEFAULT_IMAGE_HEIGHT,
 	DEFAULT_IMAGE_WIDTH,
 } from "@/lib/recipes/recipe-renderer";
+import { resolveDeviceRenderProfile } from "@/lib/trmnl/device-profile";
 import type { RefreshSchedule } from "@/lib/types";
 import {
 	buildDisplayResponse,
@@ -109,12 +110,19 @@ export async function GET(request: Request) {
 		const deviceHeight = headers.height || storedHeight;
 		const grayscaleLevels = getGrayscaleLevels(device.grayscale);
 
-		// Output format/extension is per-device: 'png' for full-colour panels,
-		// 'bmp' (grayscale) otherwise. The bitmap route keys off this extension.
-		const ext = device.image_format === "png" ? "png" : "bmp";
+		// Resolve the device's palette-aware render profile. The palette (not
+		// image_format) is the source of truth: color palettes force PNG.
+		const profile = await resolveDeviceRenderProfile({
+			model: device.model,
+			paletteId: device.palette_id,
+			ditheringMethod: device.dithering_method,
+			imageFormat: device.image_format === "png" ? "png" : "bmp",
+		});
 
-		// Build common query params for image URLs
-		const baseQueryParams = `width=${deviceWidth}&height=${deviceHeight}&grayscale=${grayscaleLevels}${headers.base64 ? "&base64=true" : ""}`;
+		const ext = profile.format; // 'png' | 'bmp', already validated vs palette
+
+		// `grayscale` kept as a deprecated alias for older cached URLs.
+		const baseQueryParams = `width=${deviceWidth}&height=${deviceHeight}&palette=${encodeURIComponent(profile.paletteId)}&dither=${profile.ditheringMethod}&grayscale=${grayscaleLevels}${headers.base64 ? "&base64=true" : ""}`;
 
 		let dynamicRefreshRate = 180;
 		let imageUrl: string;
