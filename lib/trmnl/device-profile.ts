@@ -14,6 +14,11 @@ import {
 	type TrmnlModel,
 	type TrmnlPalette,
 } from "./registry";
+import {
+	resolveRenderProfile,
+	type DitheringMethodName,
+	type ResolvedRenderProfile,
+} from "./render-profile";
 
 export const DEFAULT_MODEL_NAME = "og_plus";
 
@@ -72,4 +77,32 @@ export async function getDeviceProfile(
 	const palette = desiredPaletteId ? await findPalette(desiredPaletteId) : null;
 
 	return { model, palette, fallback };
+}
+
+/**
+ * Resolve a render profile for a device: look up the model (to pick a default
+ * palette when none is set) and the palette, then build the IO-free profile.
+ */
+export async function resolveDeviceRenderProfile(opts: {
+	model?: string | null;
+	paletteId?: string | null;
+	ditheringMethod?: DitheringMethodName | string | null;
+	imageFormat?: "png" | "bmp";
+}): Promise<ResolvedRenderProfile> {
+	const { model, palette } = await getDeviceProfile(opts.model, opts.paletteId);
+	const resolvedPalette = palette ?? (await findPalette(model.palette_ids[0] ?? "bw"));
+	return resolveRenderProfile(resolvedPalette, {
+		ditheringMethod: opts.ditheringMethod,
+		imageFormat: opts.imageFormat,
+	});
+}
+
+/** Resolve a profile from raw palette id + method (no model needed). */
+export async function resolveProfileFromPalette(
+	paletteId: string | null | undefined,
+	ditheringMethod: DitheringMethodName | string | null | undefined,
+	imageFormat: "png" | "bmp" | undefined,
+): Promise<ResolvedRenderProfile> {
+	const palette = paletteId ? await findPalette(paletteId) : null;
+	return resolveRenderProfile(palette, { ditheringMethod, imageFormat });
 }
