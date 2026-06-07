@@ -977,8 +977,8 @@ export default function Tides({
 							maxR,
 							now,
 							seaLevel.map((d) => ({ time: d.time, value: d.sg })),
-							-1,
-							6,
+							-2.76,
+							2.5,
 							C.BLUE,
 						)}
 
