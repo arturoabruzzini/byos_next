@@ -81,6 +81,14 @@ export type RecipeConfig = {
 	renderSettings?: {
 		doubleSizeForSharperText?: boolean;
 		applyEdgeSnap?: boolean;
+		/** Force a specific renderer for this recipe, overriding REACT_RENDERER. */
+		renderer?: "takumi" | "satori" | "browser";
+		/**
+		 * For the browser renderer: navigate to this external URL and screenshot
+		 * it instead of the recipe's internal preview page. The recipe's resolved
+		 * params are appended as a kiosk query string (kiosk=1&hours=&theme=&w=&h=).
+		 */
+		url?: string;
 		[key: string]: boolean | string | number | undefined;
 	};
 	[key: string]: unknown;
@@ -110,6 +118,45 @@ export const getRendererType = (): "takumi" | "satori" | "browser" => {
 	if (renderer === "satori") return "satori";
 	if (renderer === "browser") return "browser";
 	return "takumi";
+};
+
+// Resolve the effective renderer for a recipe: a per-recipe override in
+// renderSettings.renderer wins over the global REACT_RENDERER env.
+const resolveRendererType = (
+	config: RecipeConfig | null,
+): "takumi" | "satori" | "browser" => {
+	const override = config?.renderSettings?.renderer;
+	if (
+		override === "browser" ||
+		override === "satori" ||
+		override === "takumi"
+	) {
+		return override;
+	}
+	return getRendererType();
+};
+
+// Build the kiosk screenshot URL for a browser recipe that targets an external
+// page (e.g. the AvianVisitors collage on the LAN). The recipe's resolved
+// params become query args the page reads: ?kiosk=1&hours=&theme=&w=&h=.
+const buildKioskUrl = (
+	base: string,
+	props: ComponentProps | undefined,
+	width: number,
+	height: number,
+): string => {
+	const url = new URL(base);
+	url.searchParams.set("kiosk", "1");
+	const params = (props?.params ?? {}) as Record<string, unknown>;
+	for (const key of Object.keys(params)) {
+		const value = params[key];
+		if (value !== undefined && value !== null && value !== "") {
+			url.searchParams.set(key, String(value));
+		}
+	}
+	url.searchParams.set("w", String(width));
+	url.searchParams.set("h", String(height));
+	return url.toString();
 };
 
 export const fetchRecipeConfig = cache(
@@ -293,7 +340,7 @@ export const renderRecipeOutputs = cache(
 		if (!needsPng && !needsBitmap) return results;
 
 		const imageOptions = getRecipeImageOptions(config, imageWidth, imageHeight);
-		const rendererType = getRendererType();
+		const rendererType = resolveRendererType(config);
 
 		// Render PNG once and reuse it for png/bitmap outputs.
 		let pngBuffer: Buffer;
@@ -308,12 +355,21 @@ export const renderRecipeOutputs = cache(
 				if (rendererType === "browser") {
 					const { renderWithBrowser } = await import("./renderers/browser");
 					const scaleFactor = imageOptions.width / imageWidth;
+					const targetUrl = config?.renderSettings?.url
+						? buildKioskUrl(
+								config.renderSettings.url,
+								props,
+								imageWidth,
+								imageHeight,
+							)
+						: undefined;
 					pngBuffer = await renderWithBrowser(
 						slug,
 						imageWidth,
 						imageHeight,
 						scaleFactor,
 						cookies,
+						targetUrl,
 					);
 				} else {
 					const element = createElement(Component, props);

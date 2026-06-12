@@ -20,6 +20,38 @@
 		"version": "0.1.0",
 		"category": "display-components"
 	},
+	"bird-collage": {
+		"title": "Bird Collage",
+		"published": true,
+		"description": "Live collage of birds detected by BirdNET on the LAN. Rendered by screenshotting the AvianVisitors kiosk page via the browser renderer.",
+		"componentPath": "./screens/bird-collage",
+		"hasDataFetch": false,
+		"props": {},
+		"params": {
+			"hours": {
+				"type": "string",
+				"label": "Time window (hours)",
+				"description": "1 = last hour, 24 = last day, 168 = last week",
+				"default": "1",
+				"placeholder": "1"
+			},
+			"theme": {
+				"type": "string",
+				"label": "Theme",
+				"description": "light or dark background",
+				"default": "light",
+				"placeholder": "light"
+			}
+		},
+		"tags": ["browser", "lan", "birds"],
+		"renderSettings": {
+			"renderer": "browser",
+			"url": "http://birdnet.local/",
+			"doubleSizeForSharperText": true
+		},
+		"version": "0.1.0",
+		"category": "display-components"
+	},
 	"album": {
 		"title": "Album",
 		"published": true,
