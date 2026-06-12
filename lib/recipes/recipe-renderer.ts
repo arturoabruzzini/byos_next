@@ -136,19 +136,33 @@ const resolveRendererType = (
 	return getRendererType();
 };
 
+// Params that configure the request itself rather than the target page, so
+// they must not be appended to the page's query string.
+const KIOSK_RESERVED_PARAMS = new Set(["baseUrl"]);
+
 // Build the kiosk screenshot URL for a browser recipe that targets an external
-// page (e.g. the AvianVisitors collage on the LAN). The recipe's resolved
-// params become query args the page reads: ?kiosk=1&hours=&theme=&w=&h=.
+// page (e.g. the AvianVisitors collage on the LAN). The base comes from the
+// `baseUrl` param when set (so it's overridable from the UI — handy since the
+// container can't resolve mDNS .local names), falling back to the recipe's
+// configured `renderSettings.url`. The remaining params become query args the
+// page reads: ?kiosk=1&hours=&theme=&w=&h=.
 const buildKioskUrl = (
-	base: string,
+	fallbackBase: string,
 	props: ComponentProps | undefined,
 	width: number,
 	height: number,
 ): string => {
+	const params = (props?.params ?? {}) as Record<string, unknown>;
+	let base = String(params.baseUrl || fallbackBase).trim();
+	// Accept bare hosts / IPs (e.g. "birdnet.local" or "192.168.1.42") by
+	// defaulting to http:// when no scheme is given.
+	if (base && !/^https?:\/\//i.test(base)) {
+		base = `http://${base}`;
+	}
 	const url = new URL(base);
 	url.searchParams.set("kiosk", "1");
-	const params = (props?.params ?? {}) as Record<string, unknown>;
 	for (const key of Object.keys(params)) {
+		if (KIOSK_RESERVED_PARAMS.has(key)) continue;
 		const value = params[key];
 		if (value !== undefined && value !== null && value !== "") {
 			url.searchParams.set(key, String(value));
