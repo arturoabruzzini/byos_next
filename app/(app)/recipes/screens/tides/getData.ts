@@ -92,8 +92,7 @@ function computeAstronomical(
 		return toWallIso(d.getTime() + offsetMs);
 	};
 
-	const pickDate = (...dates: (Date | undefined)[]) =>
-		dates.find(isValidDate);
+	const pickDate = (...dates: (Date | undefined)[]) => dates.find(isValidDate);
 
 	const moonrise = pickDate(moon.rise, moon.set, times.sunrise)!;
 	const moonset = pickDate(moon.set, moon.rise, times.sunset)!;
